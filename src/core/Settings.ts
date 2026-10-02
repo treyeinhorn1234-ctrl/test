@@ -65,7 +65,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   moveLeft: 'Gauche',
   moveRight: 'Droite',
   run: 'Courir',
-  dodge: 'Esquive',
+  dodge: 'Roulade / esquive',
   lightAttack: 'Attaque légère',
   heavyAttack: 'Attaque lourde',
   spell1: 'Sort principal',

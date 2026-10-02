@@ -33,16 +33,21 @@ export class SpriteActor {
   private readonly shadow: THREE.Mesh;
   readonly material: THREE.MeshLambertMaterial;
   flipX = false;
+  /** Orientation à l'écran (gère l'orientation native de la planche). */
+  setScreenFacing(right: boolean): void {
+    this.flipX = this.sheet.facesLeft ? right : !right;
+  }
   /** Décalage vertical visuel (sauts, lévitation). */
   lift = 0;
 
-  constructor(readonly sheet: SpriteSheet, initialClip: string, shadowRadius = 0.6) {
+  constructor(readonly sheet: SpriteSheet, initialClip: string, shadowRadius = 0.6, depthBias = 0.6, emissiveIntensity = 1.6) {
     this.colorTex = sheet.color.clone();
     this.emissiveTex = sheet.emissive.clone();
     const { material, uniforms } = createSpriteMaterial(
       this.colorTex,
       this.emissiveTex,
       new THREE.Vector2(sheet.cols * sheet.frameW, sheet.rows * sheet.frameH),
+      { depthBias, emissiveIntensity, fillLight: 0.7 },
     );
     this.material = material;
     this.uniforms = uniforms;

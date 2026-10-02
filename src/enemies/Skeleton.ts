@@ -42,7 +42,7 @@ export class Skeleton extends Enemy {
     super(
       'Squelette gardien',
       Math.round(18 * (1 + (level - 1) * 0.2)),
-      0.45,
+      0.5,
       createStats({
         maxHp: Math.round(55 * scale),
         physAtk: 11 * (1 + (level - 1) * 0.08),
@@ -50,13 +50,13 @@ export class Skeleton extends Enemy {
         magicResist: 0,
         critChance: 0.03,
       }),
-      new SpriteActor(getSkeletonSheet(), 'rise', 0.45),
+      new SpriteActor(getSkeletonSheet(), 'rise', 0.6, 0.8),
     );
     this.aggression = Math.min(1.4, 1 + (level - 1) * 0.06);
     this.position.copy(position);
     this.home.copy(position);
-    this.centerHeight = 1.0;
-    this.barHeight = 2.5;
+    this.centerHeight = 1.4;
+    this.barHeight = 3.9;
     this.strafeSign = Math.random() < 0.5 ? -1 : 1;
     this.fsm = new StateMachine<Skeleton, SState>(this, {
       rise: {
@@ -83,6 +83,7 @@ export class Skeleton extends Enemy {
           s.velocity.set(0, 0, 0);
           s.actor.anim.playFor('windup', 0.55 / s.aggression);
           s.ctx.events.emit('sfx', { name: 'enemyWindup', position: s.position });
+          s.ctx.fx.telegraph(s, 0.65, ATTACK_RANGE + 0.3, 0.55 / s.aggression + 0.06, PAL.soulBlue);
         },
         update: (s, dt) => {
           const t = s.fsm.time;
@@ -249,6 +250,8 @@ export class Skeleton extends Enemy {
     if (!this.attackSpawned && t >= 0.05) {
       this.attackSpawned = true;
       this.ctx.combat.spawnHitbox(this, { angle: this.facing, arc: 1.2, range: ATTACK_RANGE + 0.2, offset: 0.3, hit: ATTACK_HIT, ttl: 0.12 });
+      this.ctx.fx.slashArc(this.position, this.facing + 0.7, -1.4, ATTACK_RANGE + 0.4, 0x1c6cc4, 0xc8f2ff, 0.22, 1.0);
+      this.ctx.fx.swordTrail(this.position, this.facing, ATTACK_RANGE, PAL.soulBlue, 6);
       this.ctx.events.emit('sfx', { name: 'enemySwing', position: this.position });
     }
     if (t >= 0.32) return 'recover';
@@ -280,6 +283,7 @@ export class Skeleton extends Enemy {
   onHit(result: DamageResult, hit: HitInfo, from: Entity, ctx: GameContext): void {
     this.ctx = ctx;
     this.sinceHit = 0;
+    if (!result.blocked && !this.fsm.is('windup')) ctx.fx.cancelTelegraph(this);
     this.flash(result.blocked ? 0.06 : 0.12);
     const dir = new THREE.Vector3().subVectors(this.position, from.position).setY(0).normalize();
     if (result.blocked) {
@@ -291,6 +295,7 @@ export class Skeleton extends Enemy {
     this.applyKnockback(dir, hit.knockback);
     ctx.events.emit('sfx', { name: 'boneHit', position: this.position });
     if (this.stats.hp <= 0) {
+      ctx.fx.cancelTelegraph(this);
       this.releaseToken();
       this.fsm.set('dead');
       this.beginDeath(ctx);
@@ -306,6 +311,7 @@ export class Skeleton extends Enemy {
     }
     // Super-armure partielle pendant la télégraphie.
     if (this.fsm.is('windup') && hit.tag === 'slash' && Math.random() < 0.3) return;
+    ctx.fx.cancelTelegraph(this);
     this.stunTime = Math.max(0.18, hit.stun);
     this.releaseToken();
     this.fsm.set('hurt', true);

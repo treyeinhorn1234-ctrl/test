@@ -288,6 +288,13 @@ export class Game {
       const p = entity.position.clone();
       const levels = this.player.gainXp(entity.xpReward);
       this.hud.floatText(`+${entity.xpReward} XP`, p.clone().setY(2.2), 'xp');
+      // Dévoration d'âme (forme mineure) : les âmes rejoignent Varyn et lui rendent de la mana.
+      this.fx.soulStream(p, 4, () => this.player.position, () => {
+        if (!this.player.alive) return;
+        this.player.stats.mana = Math.min(this.player.stats.maxMana, this.player.stats.mana + 5);
+        this.fx.aura(this.player.position, PAL.void3, 8, 0.6);
+        this.audio.play('soulAbsorb', { volume: 0.5 });
+      });
       const lowHp = this.player.stats.hp < this.player.stats.maxHp * 0.5;
       if (Math.random() < (lowHp ? 0.6 : 0.3)) this.pickups.spawnOrb(p);
       if (levels > 0) ev.emit('levelUp', { level: this.player.xp.level });

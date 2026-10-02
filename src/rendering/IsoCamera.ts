@@ -32,6 +32,8 @@ export class IsoCamera {
   private framing = 1;
   private targetFraming = 1;
   private trauma = 0;
+  /** Zoom bref à l'impact (« punch »), amorti rapidement. */
+  private punchAmount = 0;
   private shakeTime = 0;
   followRate = 7;
 
@@ -63,13 +65,17 @@ export class IsoCamera {
     this.targetFraming = f;
   }
 
+  punch(amount: number): void {
+    this.punchAmount = Math.min(0.12, this.punchAmount + amount);
+  }
+
   addTrauma(amount: number): void {
     this.trauma = clamp(this.trauma + amount, 0, 1);
   }
 
   /** Hauteur visible (unités monde) au niveau du point focal. */
   visibleHeight(targetPixelsY: number): number {
-    return targetPixelsY / PIXELS_PER_UNIT / (this.zoom * this.framing);
+    return targetPixelsY / PIXELS_PER_UNIT / (this.zoom * this.framing * (1 + this.punchAmount));
   }
 
   update(dt: number, targetSize: THREE.Vector2, subpixelOut: THREE.Vector2): void {
@@ -78,6 +84,7 @@ export class IsoCamera {
     this.focus.z = damp(this.focus.z, this.goal.z, this.followRate, dt);
     this.zoom = damp(this.zoom, this.targetZoom, 10, dt);
     this.framing = damp(this.framing, this.targetFraming, 3, dt);
+    this.punchAmount = damp(this.punchAmount, 0, 9, dt);
 
     const cam = this.camera;
     cam.aspect = targetSize.x / targetSize.y;

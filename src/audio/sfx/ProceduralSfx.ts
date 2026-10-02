@@ -81,6 +81,8 @@ export const SFX_GENERATORS: Record<string, SfxGenerator> = {
   swingHeavy: (sr) => mix(whoosh(sr, 0.32, 300, 1800, 1.1), thump(sr, 0.3, 140, 60, 0.3)),
   enemySwing: (sr) => whoosh(sr, 0.16, 800, 2600, 0.5),
   dodge: (sr) => whoosh(sr, 0.22, 1200, 5000, 0.55),
+  roll: (sr) => mix(whoosh(sr, 0.35, 300, 1600, 0.6), thump(sr, 0.2, 120, 60, 0.35), lowpass(buffer(sr, 0.3, (t) => rnd() * 0.3 * Math.exp(-t * 8)), sr, () => 700)),
+  soulAbsorb: (sr) => bell(sr, 0.5, [1046, 1568], 0.12, 0.18),
   boneHit: (sr) =>
     mix(
       noiseBurst(sr, 0.12, 4000, 0.9),

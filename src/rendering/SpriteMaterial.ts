@@ -18,13 +18,15 @@ export interface SpriteUniforms {
   uTintAmount: { value: number };
   uSheetSize: { value: THREE.Vector2 };
   uDepthBias: { value: number };
+  /** Lumière de remplissage : garde les personnages lisibles dans le noir. */
+  uFillLight: { value: number };
 }
 
 export function createSpriteMaterial(
   map: THREE.Texture,
   emissiveMap: THREE.Texture | undefined,
   sheetPixels: THREE.Vector2,
-  opts: { depthBias?: number; emissiveIntensity?: number; transparent?: boolean } = {},
+  opts: { depthBias?: number; emissiveIntensity?: number; transparent?: boolean; fillLight?: number } = {},
 ): { material: THREE.MeshLambertMaterial; uniforms: SpriteUniforms } {
   const material = new THREE.MeshLambertMaterial({
     map,
@@ -44,6 +46,7 @@ export function createSpriteMaterial(
     uTintAmount: { value: 0 },
     uSheetSize: { value: sheetPixels },
     uDepthBias: { value: opts.depthBias ?? 0.6 },
+    uFillLight: { value: opts.fillLight ?? 0 },
   };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -67,6 +70,7 @@ export function createSpriteMaterial(
         uniform vec3 uTint;
         uniform float uTintAmount;
         uniform vec2 uSheetSize;
+        uniform float uFillLight;
         float pxHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`,
       )
       .replace(
@@ -82,7 +86,8 @@ export function createSpriteMaterial(
       )
       .replace(
         '#include <opaque_fragment>',
-        `outgoingLight = mix(outgoingLight, uTint, uTintAmount);
+        `outgoingLight += diffuseColor.rgb * uFillLight;
+        outgoingLight = mix(outgoingLight, uTint, uTintAmount);
         outgoingLight = mix(outgoingLight, uFlashColor * 0.9, uFlash);
         outgoingLight = mix(outgoingLight, uDissolveColor * 3.0, dissolveEdge);
         #include <opaque_fragment>`,

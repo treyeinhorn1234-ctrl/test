@@ -12,7 +12,7 @@ import type { Interactable } from '../world/Level';
 import { angleDiff, damp } from '../utils/math';
 import { ABYSSAL_CLAW, CLAW_COOLDOWN, COMBO, HEAVY, type AttackDef } from './PlayerAttacks';
 
-type PState = 'idle' | 'move' | 'attack' | 'dodge' | 'hurt' | 'dead' | 'interact' | 'victory';
+type PState = 'idle' | 'move' | 'attack' | 'dodge' | 'roll' | 'hurt' | 'dead' | 'interact' | 'victory';
 type Buffered = 'light' | 'heavy' | 'claw' | 'dodge';
 
 const WALK_SPEED = 4.6;
@@ -22,6 +22,9 @@ const DODGE_COST = 22;
 const DODGE_TIME = 0.32;
 const DODGE_IFRAMES = 0.27;
 const BUFFER_TIME = 0.3;
+const ROLL_COST = 18;
+const ROLL_TIME = 0.5;
+const ROLL_IFRAMES = 0.36;
 
 /**
  * Varyn, contrôlé par le joueur. Toute la logique d'action passe par une
@@ -40,6 +43,8 @@ export class Player extends Entity {
   private comboIndex = 0;
   private hitboxSpawned = false;
   private dodgeDir = new THREE.Vector3();
+  /** Sens de balayage des arcs du combo (alterne à chaque coup). */
+  private arcSign = 1;
   private ghostTimer = 0;
   private staminaDelay = 0;
   private deathNotified = false;
@@ -52,16 +57,16 @@ export class Player extends Entity {
   constructor() {
     super(
       'player',
-      0.5,
+      0.55,
       createStats({
         maxHp: 120, maxMana: 60, maxStamina: 100,
         physAtk: 14, magAtk: 16, armor: 0.1, magicResist: 0.1,
         critChance: 0.12, critMult: 1.8,
       }),
-      new SpriteActor(getVarynSheet(), 'idle', 0.65),
+      new SpriteActor(getVarynSheet(), 'idle', 0.9, 1.1, 0.95),
     );
     this.mass = 3;
-    this.centerHeight = 1.3;
+    this.centerHeight = 1.7;
     this.light = new THREE.PointLight(0xd8c8ff, 14, 11, 1.2);
     this.fsm = new StateMachine<Player, PState>(this, {
       idle: { enter: (p) => p.actor.anim.play('idle'), update: (p, dt) => p.updateLocomotion(dt) },
@@ -70,6 +75,13 @@ export class Player extends Entity {
       dodge: {
         enter: (p) => p.enterDodge(),
         update: (p, dt) => p.updateDodge(dt),
+        exit: (p) => {
+          p.ghost = false;
+        },
+      },
+      roll: {
+        enter: (p) => p.enterRoll(),
+        update: (p, dt) => p.updateRoll(dt),
         exit: (p) => {
           p.ghost = false;
         },
@@ -116,7 +128,10 @@ export class Player extends Entity {
           p.actor.anim.play('victory', true);
           p.velocity.set(0, 0, 0);
         },
-        update: (p) => (p.fsm.time > 1.6 || p.moveDir.lengthSq() > 0 || p.buffer ? 'idle' : undefined),
+        update: (p) => {
+          if (Math.random() < 0.5) p.ctx.fx.aura(p.position, PAL.void3, 1, 0.6);
+          return p.fsm.time > 1.6 || p.moveDir.lengthSq() > 0 || p.buffer ? 'idle' : undefined;
+        },
       },
     });
     this.fsm.set('idle');
@@ -261,7 +276,8 @@ export class Player extends Entity {
     if (b === 'dodge') {
       if (s.stamina <= 0) return false;
       this.buffer = null;
-      this.fsm.set('dodge', true);
+      // En courant : pas de l'ombre (rapide) ; sinon roulade.
+      this.fsm.set(this.ctx.input.isDown('run') && this.moveDir.lengthSq() > 0 ? 'dodge' : 'roll', true);
       return true;
     }
     if (b === 'light') {
@@ -361,7 +377,10 @@ export class Player extends Entity {
     this.velocity.x = damp(this.velocity.x, fwd.x * target, 20, dt);
     this.velocity.z = damp(this.velocity.z, fwd.z * target, 20, dt);
 
-    if (def === HEAVY && t < def.activeStart) this.ctx.fx.aura(this.position, PAL.void3, 2, 0.9);
+    if (def === HEAVY && t < def.activeStart) {
+      this.ctx.fx.aura(this.position, PAL.void3, 2, 0.9);
+      this.ctx.fx.converge(this.position, PAL.void2, 3, 2.6);
+    }
 
     if (!this.hitboxSpawned && t >= def.activeStart) {
       this.hitboxSpawned = true;
@@ -370,6 +389,7 @@ export class Player extends Entity {
         hit: def.hit, ttl: def.activeEnd - def.activeStart,
       });
       this.ctx.events.emit('sfx', { name: def.sfx });
+      this.attackVfx(def);
       if (def.shockwave) {
         const p = this.position.clone().addScaledVector(fwd, 1.6);
         this.ctx.fx.shockwave(p, PAL.void2, def.shockwave);
@@ -396,6 +416,66 @@ export class Player extends Entity {
       this.attack = null;
       return this.moveDir.lengthSq() > 0 ? 'move' : 'idle';
     }
+  }
+
+  /** Effets de taille : croissant au sol, braises, fissures, griffes. */
+  private attackVfx(def: AttackDef): void {
+    const fx = this.ctx.fx;
+    const pos = this.position;
+    if (def === ABYSSAL_CLAW) {
+      for (const [r, k] of [[2.4, 0], [3.0, 1], [3.6, 2]] as const) {
+        fx.slashArc(pos, this.facing + def.arc - k * 0.08, -def.arc * 2, r, PAL.void1, PAL.void3, 0.26, 1.0 + k * 0.15);
+      }
+      fx.swordTrail(pos, this.facing, def.range, PAL.void3, 14);
+      return;
+    }
+    if (def === HEAVY) {
+      fx.slashArc(pos, this.facing, Math.PI * 2 * this.arcSign, def.range + 0.3, PAL.void1, PAL.void3, 0.34, 1.0);
+      fx.slashArc(pos, this.facing + 0.6, Math.PI * 2 * this.arcSign, def.range - 0.6, PAL.void0, PAL.void2, 0.38, 0.6);
+      fx.swordTrail(pos, this.facing, def.range, PAL.void3, 26);
+      fx.crack(pos.clone().addScaledVector(this.forward, 1.2), PAL.void1, 1.3);
+      this.ctx.cameraRig.punch(0.07);
+      return;
+    }
+    const slam = def === COMBO[2];
+    if (slam) {
+      fx.slashArc(pos, this.facing - def.arc, def.arc * 2, def.range + 0.2, PAL.void1, PAL.void3, 0.26, 0.5);
+      fx.crack(pos.clone().addScaledVector(this.forward, 1.7), PAL.void1, 1);
+      this.ctx.cameraRig.punch(0.05);
+    } else {
+      this.arcSign *= -1;
+      fx.slashArc(pos, this.facing - def.arc * this.arcSign, def.arc * 2 * this.arcSign, def.range + 0.2, PAL.void1, PAL.void3, 0.22, 1.2);
+    }
+    fx.swordTrail(pos, this.facing, def.range, PAL.void2, slam ? 18 : 10);
+  }
+
+  private enterRoll(): void {
+    this.dodgeDir.copy(this.moveDir.lengthSq() > 0 ? this.moveDir : this.forward);
+    this.facing = Math.atan2(this.dodgeDir.z, this.dodgeDir.x);
+    this.spendStamina(ROLL_COST);
+    this.invulnerable = ROLL_IFRAMES;
+    this.ghost = true;
+    this.ghostTimer = 0;
+    this.attack = null;
+    this.ctx.combat.cancelHitboxes(this);
+    this.actor.anim.playFor('roll', ROLL_TIME);
+    this.ctx.events.emit('sfx', { name: 'roll' });
+    this.ctx.fx.dust(this.position, 10, 1.1);
+  }
+
+  private updateRoll(dt: number): PState | void {
+    const t = this.fsm.time;
+    const k = Math.max(0, 1 - t / ROLL_TIME);
+    const speed = 2.5 + 10.5 * Math.pow(k, 1.1);
+    this.velocity.set(this.dodgeDir.x * speed, 0, this.dodgeDir.z * speed);
+    this.ghostTimer -= dt;
+    if (this.ghostTimer <= 0) {
+      this.ghostTimer = 0.07;
+      this.ctx.fx.dust(this.position, 2, 0.6);
+      this.ctx.fx.aura(this.position, PAL.void1, 1, 0.3);
+    }
+    if (t >= ROLL_TIME * 0.75 && t - dt < ROLL_TIME * 0.75) this.ctx.fx.dust(this.position, 8, 1);
+    if (t >= ROLL_TIME) return this.moveDir.lengthSq() > 0 ? 'move' : 'idle';
   }
 
   private enterDodge(): void {

@@ -6,6 +6,9 @@ import type { ClipInfo, SpriteSheet } from './SpriteSheet';
  */
 export class AnimationPlayer {
   clip: ClipInfo;
+  /** Nom logique du clip (sans suffixe de direction). */
+  baseName: string;
+  private _back = false;
   private time = 0;
   frame = 0;
   speed = 1;
@@ -14,6 +17,28 @@ export class AnimationPlayer {
 
   constructor(private readonly sheet: SpriteSheet, initial: string) {
     this.clip = this.get(initial);
+    this.baseName = initial;
+  }
+
+  /** Vue de dos : utilise la variante « @back » d'un clip quand elle existe. */
+  get back(): boolean {
+    return this._back;
+  }
+
+  set back(v: boolean) {
+    if (v === this._back) return;
+    this._back = v;
+    const resolved = this.resolve(this.baseName);
+    if (resolved !== this.clip.name) {
+      // Change de variante sans perdre la progression.
+      this.clip = this.get(resolved);
+      this.frame = Math.min(this.frame, this.clip.count - 1);
+    }
+  }
+
+  private resolve(name: string): string {
+    if (this._back && this.sheet.clips.has(`${name}@back`)) return `${name}@back`;
+    return name;
   }
 
   private get(name: string): ClipInfo {
@@ -29,8 +54,9 @@ export class AnimationPlayer {
   /** Lance un clip. `restart` force le redémarrage s'il est déjà joué. */
   play(name: string, restart = false, speed = 1): void {
     this.speed = speed;
-    if (this.clip.name === name && !restart) return;
-    this.clip = this.get(name);
+    if (this.baseName === name && !restart) return;
+    this.baseName = name;
+    this.clip = this.get(this.resolve(name));
     this.time = 0;
     this.frame = 0;
     this.finished = false;

@@ -24,7 +24,8 @@ npm run preview    # sert le build de production
 | Courir | Maj (consomme l'endurance) |
 | Attaque légère (combo 3 coups) | Clic gauche |
 | Attaque lourde (brise la garde, onde de choc) | Clic droit |
-| Esquive (invulnérabilité) | Espace |
+| Roulade (invulnérabilité) | Espace |
+| Pas de l'ombre (esquive rapide) | Maj + Espace en courant |
 | Griffe abyssale (sort, 18 mana) | Q (QWERTY) / A (AZERTY) |
 | Interagir / examiner | F |
 | Zoom | Molette |
@@ -53,11 +54,18 @@ statues des rois, sarcophages, tombeau brisé de Varyn, autel abyssal, grande po
 scellée, bannières profanées, torches vacillantes (lumières dynamiques), brume
 rampante, poussière, braises, ombres pixelisées de la lune, objets examinables.
 
+**Personnages** : Varyn et les squelettes sont dessinés en vue de face 3/4 (et de dos)
+dans un style pixel art détaillé : plaques d'armure biseautées et gravées, épaulières
+à pointes, couronne de cornes, flammes abyssales animées (bleues spectrales pour les
+squelettes). Animations à poses clés interpolées (8 à 10 images), roulade.
+
 **Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,
 gel d'impact (hitstop), mémoire tampon des actions, annulation de la récupération,
 assistance de visée, i-frames d'esquive, super-armure de l'attaque lourde,
-images rémanentes, étincelles, éclats d'os, ondes de choc, nombres de dégâts.
+images rémanentes, étincelles, éclats d'os, ondes de choc, nombres de dégâts,
+arcs de taille au sol, éclats d'impact, fissures lumineuses, braises sur le tranchant,
+zoom d'impact, zones d'attaque ennemies télégraphiées, âmes absorbées (+mana).
 
 **IA des squelettes** : surgissent du sol, poursuivent, contournent, télégraphient
 (yeux qui brillent), frappent, reculent, lèvent le bouclier (parade de face — l'attaque

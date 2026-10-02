@@ -1,5 +1,6 @@
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
+import { getVarynSheet } from '../assets/sprites/varynSprite';
 
 /**
  * Éléments graphiques de l'interface générés en pixel art : cadres 9-slice,
@@ -33,38 +34,20 @@ function frame(size: number, slice: number, colors: { outer: number; iron: numbe
   return c.toDataURL();
 }
 
+/** Portrait de Varyn : recadrage du heaume sur la première frame du sprite. */
 export function portrait(): string {
-  const c = new PixelCanvas(32, 32);
-  c.rect(0, 0, 32, 32, 0x1a1024);
-  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if ((x * 7 + y * 13) % 17 === 0) c.px(x, y, 0x24163a);
-  c.disc(16, 22, 12, PAL.void0, 120);
-  // Cornes.
-  c.line(9, 10, 6, 6, PAL.armor3, 2);
-  c.line(6, 6, 5, 1, PAL.armor2, 2);
-  c.line(23, 10, 25, 7, PAL.armor3, 2);
-  c.px(26, 6, PAL.armor4);
-  // Heaume.
-  c.rect(9, 9, 14, 16, PAL.armor1);
-  c.rect(10, 8, 12, 2, PAL.armor2);
-  c.rect(9, 10, 3, 14, PAL.armor2);
-  c.rect(16, 10, 1, 14, PAL.armor0);
-  // Couronne brisée.
-  c.rect(9, 9, 14, 2, PAL.gold1);
-  for (const [x, h] of [[10, 3], [13, 2], [16, 4], [19, 1], [22, 3]]) c.rect(x, 9 - h, 1, h, PAL.gold2);
-  // Fente et yeux.
-  c.rect(10, 15, 12, 2, PAL.ink);
-  c.rect(11, 15, 3, 2, PAL.ember1);
-  c.rect(18, 15, 3, 2, PAL.ember1);
-  c.px(12, 15, PAL.ember2);
-  c.px(19, 15, PAL.ember2);
-  // Gorgerin, épaulières.
-  c.rect(7, 25, 18, 7, PAL.armor2);
-  c.rect(2, 26, 7, 6, PAL.armor3);
-  c.rect(23, 26, 7, 6, PAL.armor3);
-  c.line(2, 26, 8, 26, PAL.armor4);
-  c.line(23, 26, 29, 26, PAL.armor4);
-  c.px(16, 28, PAL.void2);
-  c.outline(PAL.ink);
+  const sheet = getVarynSheet();
+  const c = document.createElement('canvas');
+  c.width = 40;
+  c.height = 40;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(20, 26, 2, 20, 26, 26);
+  g.addColorStop(0, '#3a1a5e');
+  g.addColorStop(1, '#120a1c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 40, 40);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sheet.debugCanvas, 43, 22, 40, 40, 0, 0, 40, 40);
   return c.toDataURL();
 }
 

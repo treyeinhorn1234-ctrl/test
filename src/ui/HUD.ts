@@ -121,7 +121,7 @@ export class HUD {
     };
     addSlot('light', 'lightAttack', 'Attaque légère — combo de 3 coups');
     addSlot('heavy', 'heavyAttack', 'Attaque lourde — brise la garde, onde de choc');
-    addSlot('dodge', 'dodge', "Esquive — invulnérable pendant l'élan");
+    addSlot('dodge', 'dodge', "Roulade — invulnérable · en courant : pas de l'ombre");
     this.clawSlot = addSlot('claw', 'spell1', 'Griffe abyssale — sort de mêlée (18 mana)', { cd: true });
     addSlot('chains', 'spell2', "Chaînes de l'Abîme — verrouillé (Étape 3)", { locked: true });
     addSlot('storm', 'special', 'Tempête du Néant — verrouillé (Étape 3)', { locked: true });

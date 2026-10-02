@@ -29,6 +29,8 @@ export interface SpriteSheet {
   clips: Map<string, ClipInfo>;
   /** Image composite pour le débogage / visualiseur de sprites. */
   debugCanvas: HTMLCanvasElement;
+  /** Orientation native des frames (true = le personnage regarde à gauche). */
+  facesLeft: boolean;
 }
 
 export interface ClipDef<P> {
@@ -44,9 +46,11 @@ export interface SheetSpec<P> {
   frameH: number;
   pivotX: number;
   pivotY: number;
-  outline: number;
+  /** Couleur de contour automatique (null : le générateur gère lui-même le contour). */
+  outline: number | null;
+  facesLeft?: boolean;
   clips: ClipDef<P>[];
-  draw(pose: P, color: PixelCanvas, emissive: PixelCanvas, frameIndex: number): void;
+  draw(pose: P, color: PixelCanvas, emissive: PixelCanvas, frameIndex: number, row: number): void;
 }
 
 export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
@@ -68,8 +72,8 @@ export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
     clip.frames.forEach((pose, col) => {
       const c = new PixelCanvas(spec.frameW, spec.frameH);
       const e = new PixelCanvas(spec.frameW, spec.frameH);
-      spec.draw(pose, c, e, col);
-      c.outline(spec.outline);
+      spec.draw(pose, c, e, col, row);
+      if (spec.outline !== null) c.outline(spec.outline);
       color.blit(c, col * spec.frameW, row * spec.frameH);
       emissive.blit(e, col * spec.frameW, row * spec.frameH);
     });
@@ -94,6 +98,7 @@ export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
     emissive: emTex,
     clips,
     debugCanvas: color.toCanvas(),
+    facesLeft: spec.facesLeft ?? false,
   };
 }
 

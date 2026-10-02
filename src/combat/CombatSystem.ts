@@ -100,6 +100,7 @@ export class CombatSystem {
     ctx.fx.impact(pos, dir, attacker.faction === 'player' ? 'player' : 'enemy', result.crit, blocked);
     ctx.hitstop(blocked ? hit.hitstop * 0.6 : result.crit ? hit.hitstop * 1.5 : hit.hitstop);
     ctx.cameraRig.addTrauma(hit.shake * (result.crit ? 1.4 : 1) * (attacker.faction === 'enemy' ? 1.2 : 1));
+    if (result.crit || hit.power >= 1.8) ctx.cameraRig.punch(0.03 + hit.shake * 0.04);
   }
 
   /** Les entités vivantes se repoussent (sauf les fantômes en esquive). */
