@@ -1,7 +1,9 @@
 --[[
 	Installateur SCP – Containment Breach pour Roblox Studio.
 
-	Utilisation : dans Studio, Affichage > Barre de commande, colle tout ce fichier et appuie sur Entrée.
+	Utilisation : dans Studio, Voir > Barre de commande, colle tout ce fichier puis clique sur le bouton
+	« Exécuter » (dans la nouvelle barre de commande, Entrée ajoute seulement une ligne).
+	Les messages s'affichent dans Voir > Sortie.
 
 	Il télécharge le code du projet depuis GitHub (sans Rojo), l'installe dans
 	ReplicatedStorage.Shared, ServerScriptService.Server et ServerStorage.SCPTools,
@@ -31,7 +33,7 @@ local function log(msg: string)
 	print("[SCP] " .. msg)
 end
 
-log("Installateur démarré. Les messages s'affichent dans la fenêtre Sortie (Affichage > Sortie).")
+log("Installateur démarré. Les messages s'affichent dans la fenêtre Sortie (Voir > Sortie).")
 
 --[[ 1. Accès HTTP (nécessaire pour lire GitHub ; réglage du jeu, modifiable dans Paramètres du jeu > Sécurité) ]]
 HttpService.HttpEnabled = true

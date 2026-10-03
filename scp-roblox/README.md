@@ -43,9 +43,11 @@ une salle de 51,2 studs et une porte de 7,8 studs.
 ### 1. Installer le code dans Studio (un seul script)
 
 1. Ouvre une place vide dans Roblox Studio.
-2. *Affichage* → *Barre de commande*.
-3. Copie tout le contenu de [`tools/studio/Install.luau`](tools/studio/Install.luau),
-   colle-le dans la barre de commande et appuie sur Entrée.
+2. *Voir* → *Sortie* (pour lire les messages), puis *Voir* → *Barre de commande*.
+3. Copie tout le contenu de [`tools/studio/Install.luau`](tools/studio/Install.luau)
+   (bouton *Copy raw file* sur GitHub), colle-le dans la barre de commande et clique
+   sur **▶ Exécuter**. Dans la nouvelle barre de commande, Entrée ajoute seulement
+   une ligne, elle ne lance pas le code.
 
 Le script active les requêtes HTTP de la place, télécharge le code depuis GitHub
 et l'installe dans `ReplicatedStorage.Shared`, `ServerScriptService.Server` et
@@ -82,7 +84,7 @@ Roblox ne permet pas à un script d'importer des fichiers 3D : cette étape se f
    Laisse le dossier `textures/` à côté du `.obj` pour que les textures suivent.
    Commence par quelques salles, par exemple `lockroom`, `room2offices`, `room2`.
 2. Importe aussi les props de `build/props/` (17 fichiers).
-3. Dans la barre de commande :
+3. Dans la barre de commande (puis *Exécuter*) :
 
    ```lua
    require(game.ServerStorage.SCPTools.PrepareAssets)()
