@@ -170,9 +170,12 @@ log("Code installé.")
 --[[ 5. Réglages pour tester ]]
 workspace:SetAttribute("SCP_RoomGallery", true)
 log("Galerie de test activée (attribut SCP_RoomGallery de Workspace).")
---[[ Roblox interdit à la barre de commande de changer Lighting.Technology : on le signale seulement ]]
-if Lighting.Technology ~= Enum.Technology.Future then
-	log("À faire à la main : clique sur Lighting dans l'Explorer, puis mets Technology sur Future dans les Propriétés.")
+--[[ Roblox interdit à la barre de commande de lire ou changer Lighting.Technology : on le signale seulement ]]
+local okTech, tech = pcall(function()
+	return Lighting.Technology
+end)
+if not okTech or tech ~= Enum.Technology.Future then
+	log("Si ce n'est pas déjà fait : clique sur Lighting dans l'Explorer, puis mets Technology sur Future dans les Propriétés.")
 end
 
 --[[ 6. Préparation des modèles déjà importés ]]
