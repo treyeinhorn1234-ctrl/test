@@ -215,7 +215,7 @@ export class Game {
       this.later(3, () =>
         this.hud.showMessage(
           'Réveil',
-          `Mille ans de silence. Tes muscles se souviennent d'Eclipse. ${this.input.actionLabel('moveUp')}${this.input.actionLabel('moveLeft')}${this.input.actionLabel('moveDown')}${this.input.actionLabel('moveRight')} : se déplacer · Clic gauche : combo · Clic droit : coup lourd · ${this.input.actionLabel('dodge')} : roulade · ${this.input.actionLabel('spell1')} : Griffe abyssale · ${this.input.actionLabel('interact')} : examiner.`,
+          `Mille ans de silence. Tes muscles se souviennent d'Eclipse. ${this.input.actionLabel('moveUp')}${this.input.actionLabel('moveLeft')}${this.input.actionLabel('moveDown')}${this.input.actionLabel('moveRight')} : se déplacer · Clic gauche : combo (en courant : bond) · Clic droit : tour complet (pendant le combo : coup de pied) · ${this.input.actionLabel('block')} : garde, parade juste avant l'impact · ${this.input.actionLabel('dodge')} : roulade (puis clic : uppercut) · ${this.input.actionLabel('spell1')} : Griffe abyssale · ${this.input.actionLabel('interact')} : examiner.`,
           9,
         ),
       );

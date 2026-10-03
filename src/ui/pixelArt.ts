@@ -51,7 +51,7 @@ export function portrait(): string {
   return c.toDataURL();
 }
 
-type IconName = 'light' | 'heavy' | 'dodge' | 'claw' | 'chains' | 'storm' | 'lock';
+type IconName = 'light' | 'heavy' | 'dodge' | 'guard' | 'claw' | 'chains' | 'storm' | 'lock';
 
 export function icon(name: IconName): string {
   const c = new PixelCanvas(16, 16);
@@ -72,6 +72,15 @@ export function icon(name: IconName): string {
       for (let k = 0; k < 3; k++) c.line(2 + k, 4 + k * 3, 9 + k, 4 + k * 3, k === 1 ? PAL.void3 : PAL.void1);
       c.disc(12, 8, 2.5, PAL.armor3);
       c.px(13, 7, PAL.ember1);
+      break;
+    case 'guard':
+      // Bouclier d'avant-bras levé, éclat de parade.
+      c.ellipse(8, 8, 5, 6, PAL.armor2);
+      c.ellipse(8, 7, 3, 4, PAL.armor3);
+      c.line(8, 3, 8, 13, PAL.armor1);
+      c.px(12, 3, PAL.void3);
+      c.px(13, 2, PAL.void3);
+      c.px(11, 2, PAL.void1);
       break;
     case 'claw':
       for (let k = -1; k <= 1; k++) {

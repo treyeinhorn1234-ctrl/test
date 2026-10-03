@@ -48,6 +48,15 @@ export interface SpriteSheet {
    * (variantes `@s`, `@se`, `@e`, `@ne`, `@n` ; l'ouest est le miroir de l'est).
    */
   directions: 4 | 8;
+  /** Données de combat mesurées sur le sprite, par animation (sans suffixe de direction). */
+  frameData?: Map<string, FrameData>;
+}
+
+/** Frames actives d'une animation d'attaque et allonge (unités monde) de chaque frame. */
+export interface FrameData {
+  /** Fenêtres actives [première, dernière] (indices de frame, inclus). */
+  windows: [number, number][];
+  reach: number[];
 }
 
 /** Position (colonne, ligne) d'une cellule de clip sur sa page. */

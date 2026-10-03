@@ -274,6 +274,17 @@ export class Skeleton extends Enemy {
     }
   }
 
+  /** Coup paré : le squelette perd l'équilibre et reste vulnérable. */
+  onParried(_by: Entity, ctx: GameContext): void {
+    if (!this.alive) return;
+    ctx.combat.cancelHitboxes(this);
+    ctx.fx.cancelTelegraph(this);
+    this.releaseToken();
+    this.stunTime = 1.4;
+    this.flash(0.1);
+    this.fsm.set('hurt', true);
+  }
+
   isBlocking(from: Entity, hit: HitInfo): boolean {
     if (!this.fsm.is('block') || hit.guardBreak) return false;
     const a = Math.atan2(from.position.z - this.position.z, from.position.x - this.position.x);

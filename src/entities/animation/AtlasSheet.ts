@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ClipInfo, SpriteSheet } from './SpriteSheet';
+import type { ClipInfo, FrameData, SpriteSheet } from './SpriteSheet';
 
 /**
  * Planche chargée depuis des images (atlas exportés par un outil, ex.
@@ -13,6 +13,7 @@ export interface AtlasMeta {
   pivotX: number;
   pivotY: number;
   clips: Record<string, { page: number; start: number; count: number; fps: number; loop: boolean; events: Record<string, string> }>;
+  moves?: Record<string, FrameData>;
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -72,5 +73,6 @@ export async function loadAtlasSheet(
     facesLeft: false,
     pixelsPerUnit: opts.pixelsPerUnit,
     directions: opts.directions,
+    frameData: new Map(Object.entries(meta.moves ?? {})),
   };
 }

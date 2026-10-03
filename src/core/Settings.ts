@@ -6,7 +6,7 @@ export type QualityPreset = 'low' | 'medium' | 'high';
 
 export type Action =
   | 'moveUp' | 'moveDown' | 'moveLeft' | 'moveRight'
-  | 'run' | 'dodge' | 'lightAttack' | 'heavyAttack'
+  | 'run' | 'dodge' | 'block' | 'lightAttack' | 'heavyAttack'
   | 'spell1' | 'spell2' | 'special' | 'interact'
   | 'inventory' | 'journal' | 'map' | 'pause';
 
@@ -47,6 +47,7 @@ export const DEFAULT_BINDINGS: Record<Action, string> = {
   moveRight: 'KeyD',
   run: 'ShiftLeft',
   dodge: 'Space',
+  block: 'KeyC',
   lightAttack: 'Mouse0',
   heavyAttack: 'Mouse2',
   spell1: 'KeyQ',
@@ -66,6 +67,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   moveRight: 'Droite',
   run: 'Courir',
   dodge: 'Roulade / esquive',
+  block: 'Garde / parade',
   lightAttack: 'Attaque légère',
   heavyAttack: 'Attaque lourde',
   spell1: 'Sort principal',
@@ -84,7 +86,7 @@ export const QUALITY_PRESETS: Record<QualityPreset, { shadows: number; particles
   high: { shadows: 2048, particles: 1, postLevel: 2, lights: 12 },
 };
 
-const STORAGE_KEY = 'ashen-crown.settings.v4';
+const STORAGE_KEY = 'ashen-crown.settings.v5';
 
 function defaults(): SettingsData {
   return {

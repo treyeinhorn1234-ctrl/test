@@ -10,9 +10,10 @@ import { Entity } from '../entities/Entity';
 import { Experience } from '../progression/Experience';
 import type { Interactable } from '../world/Level';
 import { angleDiff, damp } from '../utils/math';
-import { ABYSSAL_CLAW, CLAW_COOLDOWN, COMBO, HEAVY, type AttackDef } from './PlayerAttacks';
+import type { FrameData } from '../entities/animation/SpriteSheet';
+import { CLAW_COOLDOWN, CLAW_EXTRA_RANGE, COMBO, MOVES, type MoveDef, type MoveId } from './PlayerMoves';
 
-type PState = 'idle' | 'move' | 'attack' | 'dodge' | 'roll' | 'hurt' | 'dead' | 'interact' | 'victory';
+type PState = 'idle' | 'move' | 'attack' | 'guard' | 'dodge' | 'roll' | 'hurt' | 'dead' | 'interact' | 'victory';
 type Buffered = 'light' | 'heavy' | 'claw' | 'dodge';
 
 const WALK_SPEED = 4.6;
@@ -25,10 +26,21 @@ const BUFFER_TIME = 0.3;
 const ROLL_COST = 18;
 const ROLL_TIME = 0.5;
 const ROLL_IFRAMES = 0.36;
+/** Garde levée depuis moins de PARRY_WINDOW s : parade parfaite. */
+const PARRY_WINDOW = 0.2;
+/** Coût en endurance d'un coup encaissé en garde. */
+const GUARD_COST = 14;
+/** Après une roulade ou une parade, l'attaque légère devient un uppercut pendant ce délai. */
+const RIPOSTE_WINDOW = 0.45;
 
 /**
  * Varyn, contrôlé par le joueur. Toute la logique d'action passe par une
  * machine à états qui pilote les animations, les hitboxes et les coûts.
+ *
+ * Combat piloté par le sprite : pendant une attaque, c'est la frame affichée
+ * qui décide (hitbox à l'entrée de chaque fenêtre active mesurée sur
+ * l'animation, portée = allonge de la lame sur ces frames, enchaînement
+ * ouvert après la dernière frame active).
  */
 export class Player extends Entity {
   readonly xp = new Experience();
@@ -39,9 +51,16 @@ export class Player extends Entity {
   private moveDir = new THREE.Vector3();
   private buffer: Buffered | null = null;
   private bufferTime = 0;
-  private attack: AttackDef | null = null;
+  private move: MoveDef | null = null;
+  private moveFd: FrameData | null = null;
+  /** Fenêtres actives déjà déclenchées pour le coup en cours. */
+  private windowsFired = 0;
   private comboIndex = 0;
   private hitboxSpawned = false;
+  /** Temps depuis la levée de la garde. */
+  private guardTime = 0;
+  /** Fenêtre de riposte (uppercut) après une roulade ou une parade. */
+  private riposte = 0;
   private dodgeDir = new THREE.Vector3();
   /** Sens de balayage des arcs du combo (alterne à chaque coup). */
   private arcSign = 1;
@@ -72,11 +91,20 @@ export class Player extends Entity {
       idle: { enter: (p) => p.actor.anim.play('idle'), update: (p, dt) => p.updateLocomotion(dt) },
       move: { update: (p, dt) => p.updateLocomotion(dt) },
       attack: { update: (p, dt) => p.updateAttack(dt) },
+      guard: {
+        enter: (p) => {
+          p.guardTime = 0;
+          p.actor.anim.play('guard', true, 1);
+          p.velocity.set(0, 0, 0);
+        },
+        update: (p, dt) => p.updateGuard(dt),
+      },
       dodge: {
         enter: (p) => p.enterDodge(),
         update: (p, dt) => p.updateDodge(dt),
         exit: (p) => {
           p.ghost = false;
+          p.riposte = RIPOSTE_WINDOW;
         },
       },
       roll: {
@@ -84,6 +112,7 @@ export class Player extends Entity {
         update: (p, dt) => p.updateRoll(dt),
         exit: (p) => {
           p.ghost = false;
+          p.riposte = RIPOSTE_WINDOW;
         },
       },
       hurt: {
@@ -164,6 +193,8 @@ export class Player extends Entity {
     this.facing = Math.PI / 2;
     this.clawCooldown = 0;
     this.buffer = null;
+    this.move = null;
+    this.riposte = 0;
     this.actor.uniforms.uTintAmount.value = 0;
     this.fsm.set('idle', true);
   }
@@ -242,6 +273,13 @@ export class Player extends Entity {
     this.bufferTime -= dt;
     if (this.bufferTime <= 0) this.buffer = null;
 
+    // Garde : tenue tant que la touche est enfoncée.
+    if (input.isDown('block') && this.alive && this.fsm.is('idle', 'move', 'victory') && this.stats.stamina > 0) this.fsm.set('guard');
+    if (input.wasPressed('block') && this.fsm.is('attack') && this.move && this.windowsFired >= this.activeWindows().length) {
+      this.endMove();
+      this.fsm.set('guard');
+    }
+
     if (input.wasPressed('interact') && this.interactTarget && this.fsm.is('idle', 'move', 'victory')) {
       this.fsm.set('interact');
     }
@@ -250,12 +288,13 @@ export class Player extends Entity {
   private regen(dt: number): void {
     const s = this.stats;
     this.clawCooldown = Math.max(0, this.clawCooldown - dt);
+    this.riposte = Math.max(0, this.riposte - dt);
     if (!this.alive) return;
     s.mana = Math.min(s.maxMana, s.mana + 1.5 * dt);
     if (this.running && this.fsm.is('move')) {
       s.stamina = Math.max(0, s.stamina - RUN_COST * dt);
       this.staminaDelay = 0.5;
-    } else if (this.fsm.is('attack', 'dodge')) {
+    } else if (this.fsm.is('attack', 'dodge', 'guard')) {
       this.staminaDelay = 0.5;
     } else {
       this.staminaDelay -= dt;
@@ -283,24 +322,36 @@ export class Player extends Entity {
     if (b === 'light') {
       if (s.stamina <= 0) return false;
       this.buffer = null;
-      const next = this.fsm.is('attack') && this.attack && COMBO.includes(this.attack) ? (this.comboIndex + 1) % COMBO.length : 0;
-      this.startAttack(COMBO[next], next);
+      const inCombo = this.fsm.is('attack') && this.move && COMBO.includes(this.move.id);
+      let id: MoveId;
+      if (inCombo) {
+        id = COMBO[(this.comboIndex + 1) % COMBO.length];
+      } else if (this.riposte > 0) {
+        id = 'uppercut';
+      } else if (this.running && this.fsm.is('move')) {
+        id = 'leap';
+      } else {
+        id = 'attack1';
+      }
+      this.startMove(MOVES[id]);
       return true;
     }
     if (b === 'heavy') {
       if (s.stamina <= 0) return false;
       this.buffer = null;
-      this.startAttack(HEAVY, 0);
+      // Clic droit au milieu du combo : coup de pied brise-garde ; sinon tour complet.
+      const branch = this.fsm.is('attack') && this.move && (this.move.id === 'attack1' || this.move.id === 'attack2');
+      this.startMove(MOVES[branch ? 'kick' : 'heavy']);
       return true;
     }
     if (b === 'claw') {
       this.buffer = null;
-      if (this.clawCooldown > 0 || s.mana < (ABYSSAL_CLAW.mana ?? 0)) {
+      if (this.clawCooldown > 0 || s.mana < (MOVES.claw.mana ?? 0)) {
         this.ctx.events.emit('sfx', { name: 'denied' });
         return false;
       }
       this.clawCooldown = CLAW_COOLDOWN;
-      this.startAttack(ABYSSAL_CLAW, 0);
+      this.startMove(MOVES.claw);
       return true;
     }
     return false;
@@ -354,99 +405,184 @@ export class Player extends Entity {
     return angle;
   }
 
-  private startAttack(def: AttackDef, comboIndex: number): void {
-    this.attack = def;
-    this.comboIndex = comboIndex;
-    this.hitboxSpawned = false;
-    this.facing = this.aimAngle(def.range);
+  // ------------------------------------------------------------- attaques pilotées par le sprite
+
+  private activeWindows(): [number, number][] {
+    return this.moveFd?.windows ?? [];
+  }
+
+  /** Portée mesurée sur le sprite pour une fenêtre (allonge maximale de ses frames). */
+  private windowReach(w: [number, number]): number {
+    const r = this.moveFd?.reach ?? [];
+    let m = 0;
+    for (let i = w[0]; i <= w[1]; i++) m = Math.max(m, r[i] ?? 0);
+    return m;
+  }
+
+  private startMove(def: MoveDef): void {
+    const fd = getKnightSheet().frameData?.get(def.anim) ?? null;
+    this.move = def;
+    this.moveFd = fd;
+    this.windowsFired = 0;
+    const ci = COMBO.indexOf(def.id);
+    this.comboIndex = ci >= 0 ? ci : 0;
+    const firstReach = fd && fd.windows.length ? this.windowReach(fd.windows[0]) : 2;
+    this.facing = this.aimAngle(firstReach + (def.id === 'claw' ? CLAW_EXTRA_RANGE : 0));
     this.spendStamina(def.stamina);
     if (def.mana) this.stats.mana -= def.mana;
-    this.actor.anim.playFor(def.anim, def.duration);
+    this.riposte = 0;
+    this.actor.anim.play(def.anim, true, def.speed);
     this.fsm.set('attack', true);
-    this.ctx.events.emit('playerAttack', { position: this.position.clone(), heavy: def === HEAVY });
-    if (def === HEAVY) this.ctx.events.emit('sfx', { name: 'charge' });
+    const heavy = def.id === 'heavy' || def.id === 'kick';
+    this.ctx.events.emit('playerAttack', { position: this.position.clone(), heavy });
+    if (def.id === 'heavy') this.ctx.events.emit('sfx', { name: 'charge' });
+  }
+
+  private endMove(): void {
+    this.move = null;
+    this.moveFd = null;
+  }
+
+  /** Durée (s) d'une frame du coup en cours. */
+  private frameTime(): number {
+    const clip = this.actor.anim.clip;
+    return 1 / (clip.fps * (this.move?.speed ?? 1));
   }
 
   private updateAttack(dt: number): PState | void {
-    const def = this.attack!;
-    const t = this.fsm.time;
+    const def = this.move!;
+    const anim = this.actor.anim;
+    const frame = anim.frame;
+    const windows = this.activeWindows();
+    const last = windows.length ? windows[windows.length - 1][1] : Math.floor(anim.clip.count / 2);
     const fwd = this.forward;
-    // Élan : avance pendant la phase active, puis s'arrête net.
-    const lungeK = t < def.activeStart - 0.06 ? 0.15 : t < def.activeEnd ? 1 : 0;
-    const target = def.lunge * lungeK;
-    this.velocity.x = damp(this.velocity.x, fwd.x * target, 20, dt);
-    this.velocity.z = damp(this.velocity.z, fwd.z * target, 20, dt);
 
-    if (def === HEAVY && t < def.activeStart) {
+    // Élan : léger pendant l'armé, plein jusqu'à la dernière frame active, puis arrêt net.
+    const first = windows.length ? windows[0][0] : 0;
+    const lungeK = frame < first - 1 ? 0.2 : frame <= last ? 1 : 0;
+    this.velocity.x = damp(this.velocity.x, fwd.x * def.lunge * lungeK, 20, dt);
+    this.velocity.z = damp(this.velocity.z, fwd.z * def.lunge * lungeK, 20, dt);
+
+    if (def.id === 'heavy' && frame < first) {
       this.ctx.fx.aura(this.position, PAL.void3, 2, 0.9);
       this.ctx.fx.converge(this.position, PAL.void2, 3, 2.6);
     }
 
-    if (!this.hitboxSpawned && t >= def.activeStart) {
-      this.hitboxSpawned = true;
+    // Une hitbox à l'entrée de chaque fenêtre active du sprite.
+    while (this.windowsFired < windows.length && frame >= windows[this.windowsFired][0]) {
+      const k = this.windowsFired++;
+      const w = windows[k];
+      if (frame > w[1] + 1) continue; // fenêtre sautée (ralentissement extrême) : pas de coup fantôme
+      const range = this.windowReach(w) + (def.id === 'claw' ? CLAW_EXTRA_RANGE : 0);
+      const hit = def.hits[Math.min(k, def.hits.length - 1)];
       this.ctx.combat.spawnHitbox(this, {
-        angle: this.facing, arc: def.arc, range: def.range, offset: 0.4,
-        hit: def.hit, ttl: def.activeEnd - def.activeStart,
+        angle: this.facing, arc: def.arc, range, offset: 0.4, hit,
+        ttl: (w[1] - w[0] + 1) * this.frameTime() + 0.02,
       });
       this.ctx.events.emit('sfx', { name: def.sfx });
-      this.attackVfx(def);
-      if (def.shockwave) {
-        const p = this.position.clone().addScaledVector(fwd, 1.6);
+      this.moveVfx(def, k, range);
+      if (def.shockwave && k === windows.length - 1) {
+        const p = this.position.clone().addScaledVector(fwd, Math.min(range, 1.6));
         this.ctx.fx.shockwave(p, PAL.void2, def.shockwave);
         this.ctx.fx.dust(p, 12, 1.4);
         this.ctx.cameraRig.addTrauma(0.25);
         this.ctx.events.emit('sfx', { name: 'slam' });
       }
-      if (def === ABYSSAL_CLAW) {
-        const p = this.position.clone().addScaledVector(fwd, 1.9);
-        this.ctx.fx.clawMarks(p, this.facing);
-        this.ctx.fx.aura(p, PAL.void3, 14, 1.2);
-      }
     }
 
-    if (t >= def.cancelAt) {
-      if (this.buffer === 'dodge' || this.buffer === 'heavy' || this.buffer === 'claw') {
-        if (this.tryBuffered()) return;
-      }
-      if (this.buffer === 'light' && t >= def.activeEnd + 0.03) {
-        if (this.tryBuffered()) return;
-      }
+    // Enchaînements : ouverts après la dernière frame active (+ délai propre au coup).
+    if (frame > last + def.cancelDelay || anim.finished) {
+      if (this.buffer && this.tryBuffered()) return;
     }
-    if (t >= def.duration) {
-      this.attack = null;
+    if (anim.finished) {
+      this.endMove();
       return this.moveDir.lengthSq() > 0 ? 'move' : 'idle';
     }
   }
 
-  /** Effets de taille : croissant au sol, braises, fissures, griffes. */
-  private attackVfx(def: AttackDef): void {
+  /** Effets de taille, à la portée mesurée sur le sprite. */
+  private moveVfx(def: MoveDef, k: number, range: number): void {
     const fx = this.ctx.fx;
     const pos = this.position;
-    if (def === ABYSSAL_CLAW) {
-      for (const [r, k] of [[2.4, 0], [3.0, 1], [3.6, 2]] as const) {
-        fx.slashArc(pos, this.facing + def.arc - k * 0.08, -def.arc * 2, r, PAL.void1, PAL.void3, 0.26, 1.0 + k * 0.15);
+    const f = this.facing;
+    switch (def.vfx) {
+      case 'claw':
+        for (const [r, j] of [[range - 0.6, 0], [range, 1], [range + 0.5, 2]] as const) {
+          fx.slashArc(pos, f + def.arc - j * 0.08, -def.arc * 2, r, PAL.void1, PAL.void3, 0.26, 1.0 + j * 0.15);
+        }
+        fx.clawMarks(pos.clone().addScaledVector(this.forward, range * 0.8), f);
+        fx.aura(pos.clone().addScaledVector(this.forward, range * 0.8), PAL.void3, 14, 1.2);
+        break;
+      case 'spin':
+        fx.slashArc(pos, f, Math.PI * 2 * this.arcSign, range + 0.2, PAL.void1, PAL.void3, 0.34, 1.0);
+        if (k > 0) {
+          fx.slashArc(pos, f + 0.6, Math.PI * 2 * this.arcSign, range - 0.6, PAL.void0, PAL.void2, 0.38, 0.6);
+          fx.crack(pos.clone().addScaledVector(this.forward, 1.2), PAL.void1, 1.3);
+          this.ctx.cameraRig.punch(0.07);
+        }
+        fx.swordTrail(pos, f, range, PAL.void3, 20);
+        break;
+      case 'slam':
+        fx.slashArc(pos, f - def.arc, def.arc * 2, range + 0.2, PAL.void1, PAL.void3, 0.26, 0.5);
+        fx.crack(pos.clone().addScaledVector(this.forward, Math.min(range, 1.7)), PAL.void1, 1.1);
+        this.ctx.cameraRig.punch(0.05);
+        fx.swordTrail(pos, f, range, PAL.void2, 18);
+        break;
+      case 'kick':
+      case 'uppercut':
+        fx.shockwave(pos.clone().addScaledVector(this.forward, range * 0.8).setY(def.vfx === 'uppercut' ? 0.9 : 0.6), PAL.void2, 0.9);
+        fx.dust(pos.clone().addScaledVector(this.forward, 0.6), 6, 0.8);
+        break;
+      default: {
+        // Taille : l'arc alterne de sens à chaque coup (rafale comprise).
+        this.arcSign *= -1;
+        const big = def.vfx === 'flurry' && k === 2;
+        fx.slashArc(pos, f - def.arc * this.arcSign, def.arc * 2 * this.arcSign, range + 0.15, PAL.void1, PAL.void3, big ? 0.26 : 0.22, big ? 0.6 : 1.2);
+        fx.swordTrail(pos, f, range, PAL.void2, big ? 16 : 10);
+        if (big) fx.crack(pos.clone().addScaledVector(this.forward, Math.min(range, 1.6)), PAL.void1, 0.9);
       }
-      fx.swordTrail(pos, this.facing, def.range, PAL.void3, 14);
-      return;
     }
-    if (def === HEAVY) {
-      fx.slashArc(pos, this.facing, Math.PI * 2 * this.arcSign, def.range + 0.3, PAL.void1, PAL.void3, 0.34, 1.0);
-      fx.slashArc(pos, this.facing + 0.6, Math.PI * 2 * this.arcSign, def.range - 0.6, PAL.void0, PAL.void2, 0.38, 0.6);
-      fx.swordTrail(pos, this.facing, def.range, PAL.void3, 26);
-      fx.crack(pos.clone().addScaledVector(this.forward, 1.2), PAL.void1, 1.3);
-      this.ctx.cameraRig.punch(0.07);
-      return;
+  }
+
+  // ------------------------------------------------------------- garde et parade
+
+  private updateGuard(dt: number): PState | void {
+    this.guardTime += dt;
+    // La garde suit la visée (souris) ; pas lents possibles.
+    const aim = this.ctx.aimPoint;
+    const dx = aim.x - this.position.x, dz = aim.z - this.position.z;
+    if (dx * dx + dz * dz > 0.09) this.facing = Math.atan2(dz, dx);
+    this.velocity.x = damp(this.velocity.x, this.moveDir.x * 1.4, 14, dt);
+    this.velocity.z = damp(this.velocity.z, this.moveDir.z * 1.4, 14, dt);
+    // Après l'impact sur la garde, revient à la pose de garde tenue.
+    const anim = this.actor.anim;
+    if (anim.baseName === 'guardHit' && anim.finished) anim.play('guard', true, 1);
+    if (!this.ctx.input.isDown('block') || this.stats.stamina <= 0) return this.moveDir.lengthSq() > 0 ? 'move' : 'idle';
+    // Riposte immédiate depuis la garde.
+    if (this.buffer === 'dodge' || this.buffer === 'claw' || this.buffer === 'heavy' || this.buffer === 'light') {
+      if (this.tryBuffered()) return;
     }
-    const slam = def === COMBO[2];
-    if (slam) {
-      fx.slashArc(pos, this.facing - def.arc, def.arc * 2, def.range + 0.2, PAL.void1, PAL.void3, 0.26, 0.5);
-      fx.crack(pos.clone().addScaledVector(this.forward, 1.7), PAL.void1, 1);
-      this.ctx.cameraRig.punch(0.05);
-    } else {
-      this.arcSign *= -1;
-      fx.slashArc(pos, this.facing - def.arc * this.arcSign, def.arc * 2 * this.arcSign, def.range + 0.2, PAL.void1, PAL.void3, 0.22, 1.2);
-    }
-    fx.swordTrail(pos, this.facing, def.range, PAL.void2, slam ? 18 : 10);
+  }
+
+  /** Le coup arrive-t-il de face (cône de 140°) ? */
+  private facesAttacker(from: Entity): boolean {
+    const a = Math.atan2(from.position.z - this.position.z, from.position.x - this.position.x);
+    return Math.abs(angleDiff(this.facing, a)) < 1.22;
+  }
+
+  isBlocking(from: Entity, hit: HitInfo): boolean {
+    return this.fsm.is('guard') && !hit.guardBreak && this.facesAttacker(from);
+  }
+
+  tryParry(from: Entity, _hit: HitInfo, ctx: GameContext): boolean {
+    if (!this.fsm.is('guard') || this.guardTime > PARRY_WINDOW || !this.facesAttacker(from)) return false;
+    this.ctx = ctx;
+    // Parade parfaite : riposte possible (uppercut) et un peu d'endurance rendue.
+    this.riposte = 0.8;
+    this.stats.stamina = Math.min(this.stats.maxStamina, this.stats.stamina + 15);
+    this.actor.anim.play('guardHit', true, 1.6);
+    this.ctx.fx.aura(this.position, PAL.void3, 10, 1);
+    return true;
   }
 
   private enterRoll(): void {
@@ -456,7 +592,7 @@ export class Player extends Entity {
     this.invulnerable = ROLL_IFRAMES;
     this.ghost = true;
     this.ghostTimer = 0;
-    this.attack = null;
+    this.endMove();
     this.ctx.combat.cancelHitboxes(this);
     this.actor.anim.playFor('roll', ROLL_TIME);
     this.ctx.events.emit('sfx', { name: 'roll' });
@@ -485,7 +621,7 @@ export class Player extends Entity {
     this.invulnerable = DODGE_IFRAMES;
     this.ghost = true;
     this.ghostTimer = 0;
-    this.attack = null;
+    this.endMove();
     this.ctx.combat.cancelHitboxes(this);
     this.actor.anim.playFor('dodge', DODGE_TIME);
     this.ctx.events.emit('sfx', { name: 'dodge' });
@@ -506,10 +642,24 @@ export class Player extends Entity {
     if (t >= DODGE_TIME) return this.moveDir.lengthSq() > 0 ? 'move' : 'idle';
   }
 
-  onHit(_result: DamageResult, hit: HitInfo, from: Entity, ctx: GameContext): void {
+  onHit(result: DamageResult, hit: HitInfo, from: Entity, ctx: GameContext): void {
     if (!this.alive) return;
-    this.flash(0.14);
     const dir = new THREE.Vector3().subVectors(this.position, from.position).setY(0).normalize();
+    if (result.blocked && this.stats.hp > 0) {
+      // Coup encaissé en garde : recul, endurance, l'épée vibre — pas d'interruption.
+      this.flash(0.05);
+      this.applyKnockback(dir, hit.knockback * 0.45);
+      this.spendStamina(GUARD_COST);
+      this.actor.anim.play('guardHit', true, 1.4);
+      ctx.events.emit('sfx', { name: 'block' });
+      ctx.fx.impact(this.center.clone().addScaledVector(dir, -0.5), dir.clone().negate(), 'enemy', false, true);
+      if (this.stats.stamina <= 0) {
+        ctx.events.emit('floatText', { text: 'GARDE BRISÉE', position: this.position.clone().setY(2.8), cls: 'crit' });
+        this.fsm.set('hurt', true);
+      }
+      return;
+    }
+    this.flash(0.14);
     this.applyKnockback(dir, hit.knockback * 0.8);
     ctx.events.emit('sfx', { name: 'playerHurt' });
     if (this.stats.hp <= 0) {
@@ -519,11 +669,11 @@ export class Player extends Entity {
       return;
     }
     this.invulnerable = 0.6;
-    // L'attaque lourde, une fois lancée, ne peut être interrompue (super-armure).
-    const armored = this.fsm.is('attack') && this.attack === HEAVY && this.fsm.time > HEAVY.activeStart - 0.15;
+    // Super-armure : une fois la première fenêtre active atteinte, le coup va au bout.
+    const armored = this.fsm.is('attack') && !!this.move?.superArmor && this.windowsFired > 0;
     if (!armored) {
       ctx.combat.cancelHitboxes(this);
-      this.attack = null;
+      this.endMove();
       this.fsm.set('hurt', true);
     }
   }

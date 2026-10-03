@@ -63,7 +63,25 @@ tournoyant, sort, glissade, roulade, impact, mort, interaction, victoire. Le
 **squelette** reste un chibi procédural riggé (cinématique inverse, 4 directions).
 Visualiseur : `/?debug=sprites` (`&who=varyn`, `&clip=heavy`, `&zoom=2`).
 
-**Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
+**Combat piloté par le sprite** : les fenêtres actives et la portée de chaque coup
+sont **mesurées sur les frames de l'animation** (`tools/build_knight.py` →
+`knight.json`, champ `moves`) : une hitbox naît à l'entrée de chaque fenêtre
+active, avec l'allonge de la lame sur ces frames ; plusieurs fenêtres = plusieurs
+impacts ; l'enchaînement s'ouvre après la dernière frame active ; l'épée Eclipse
+n'apparaît qu'autour des frames actives.
+
+| Commande | Coup |
+| --- | --- |
+| Clic gauche | combo : taille → revers → rafale finale (3 impacts) |
+| Clic gauche en courant | bond, impact à la réception (onde de choc) |
+| Clic gauche après une roulade ou une parade | uppercut |
+| Clic droit pendant le combo | coup de pied brise-garde |
+| Clic droit | tour complet (2 balayages, super-armure) |
+| Q | griffe abyssale (mana) |
+| C (maintenu) | garde : coups de face réduits, coût d'endurance · levée juste avant l'impact : **parade** (aucun dégât, ennemi déséquilibré) |
+| Espace / Maj+Espace | roulade / glissade (invulnérables) |
+
+**Système** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,
 gel d'impact (hitstop), mémoire tampon des actions, annulation de la récupération,
 assistance de visée, i-frames d'esquive, super-armure de l'attaque lourde,

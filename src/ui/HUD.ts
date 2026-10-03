@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Input } from '../engine/Input';
 import type { Enemy } from '../enemies/Enemy';
 import type { Player } from '../player/Player';
-import { ABYSSAL_CLAW, CLAW_COOLDOWN } from '../player/PlayerAttacks';
+import { CLAW_COOLDOWN, MOVES } from '../player/PlayerMoves';
 import { icon, portrait } from './pixelArt';
 import type { Action } from '../core/Settings';
 
@@ -119,9 +119,10 @@ export class HUD {
       this.slots.push(ref);
       return ref;
     };
-    addSlot('light', 'lightAttack', 'Attaque légère — combo de 3 coups');
-    addSlot('heavy', 'heavyAttack', 'Attaque lourde — brise la garde, onde de choc');
-    addSlot('dodge', 'dodge', "Roulade — invulnérable · en courant : pas de l'ombre");
+    addSlot('light', 'lightAttack', 'Attaque légère — combo : taille, revers, rafale · en courant : bond · après roulade/parade : uppercut');
+    addSlot('heavy', 'heavyAttack', 'Attaque lourde — tour complet (2 balayages) · pendant le combo : coup de pied brise-garde');
+    addSlot('dodge', 'dodge', "Roulade — invulnérable · en courant : glissade");
+    addSlot('guard', 'block', 'Garde — réduit les coups de face · levée juste avant l’impact : parade (ennemi déséquilibré)');
     this.clawSlot = addSlot('claw', 'spell1', 'Griffe abyssale — sort de mêlée (18 mana)', { cd: true });
     addSlot('chains', 'spell2', "Chaînes de l'Abîme — verrouillé (Étape 3)", { locked: true });
     addSlot('storm', 'special', 'Tempête du Néant — verrouillé (Étape 3)', { locked: true });
@@ -227,7 +228,7 @@ export class HUD {
     const slot = this.clawSlot;
     slot.cd!.style.transform = `scaleY(${cd / CLAW_COOLDOWN})`;
     slot.cdText!.textContent = cd > 0 ? cd.toFixed(1) : '';
-    slot.root.classList.toggle('unavailable', s.mana < (ABYSSAL_CLAW.mana ?? 0));
+    slot.root.classList.toggle('unavailable', s.mana < (MOVES.claw.mana ?? 0));
     const ready = cd <= 0;
     if (ready && !this.clawWasReady) {
       slot.root.classList.remove('ready-flash');

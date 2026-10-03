@@ -87,6 +87,18 @@ export class CombatSystem {
 
   /** Applique un coup directement (projectiles, sorts, zones). */
   applyHit(attacker: Entity, target: Entity, hit: HitInfo, ctx: GameContext): void {
+    if (target.tryParry(attacker, hit, ctx)) {
+      // Parade parfaite : aucun dégât, l'attaquant est déséquilibré.
+      attacker.onParried(target, ctx);
+      const mid = target.center.clone().lerp(attacker.center, 0.45);
+      ctx.fx.impact(mid, new THREE.Vector3().subVectors(attacker.position, target.position).setY(0).normalize(), 'player', true, true);
+      ctx.events.emit('sfx', { name: 'parry', position: mid });
+      ctx.events.emit('floatText', { text: 'PARADE !', position: target.position.clone().setY(2.8), cls: 'crit' });
+      ctx.hitstop(0.14);
+      ctx.cameraRig.addTrauma(0.3);
+      ctx.cameraRig.punch(0.06);
+      return;
+    }
     const blocked = target.isBlocking(attacker, hit);
     const result = resolveDamage(attacker.stats, target.stats, hit, blocked);
     target.stats.hp = Math.max(0, target.stats.hp - result.amount);

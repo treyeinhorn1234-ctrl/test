@@ -1,17 +1,17 @@
 {
- "frameW": 184,
- "frameH": 160,
+ "frameW": 186,
+ "frameH": 162,
  "cols": 22,
  "pages": [
   {
-   "h": 4000
+   "h": 4050
   },
   {
-   "h": 1440
+   "h": 2916
   }
  ],
- "pivotX": 92,
- "pivotY": 124,
+ "pivotX": 93,
+ "pivotY": 126,
  "directions": [
   "e",
   "ne",
@@ -23,46 +23,46 @@
   "idle@e": {
    "page": 0,
    "start": 0,
-   "count": 17,
-   "fps": 7,
+   "count": 9,
+   "fps": 4,
    "loop": true,
    "events": {}
   },
   "idle@ne": {
    "page": 0,
-   "start": 17,
-   "count": 17,
-   "fps": 7,
+   "start": 9,
+   "count": 9,
+   "fps": 4,
    "loop": true,
    "events": {}
   },
   "idle@n": {
    "page": 0,
-   "start": 34,
-   "count": 17,
-   "fps": 7,
+   "start": 18,
+   "count": 9,
+   "fps": 4,
    "loop": true,
    "events": {}
   },
   "idle@se": {
    "page": 0,
-   "start": 51,
-   "count": 17,
-   "fps": 7,
+   "start": 27,
+   "count": 9,
+   "fps": 4,
    "loop": true,
    "events": {}
   },
   "idle@s": {
    "page": 0,
-   "start": 68,
-   "count": 17,
-   "fps": 7,
+   "start": 36,
+   "count": 9,
+   "fps": 4,
    "loop": true,
    "events": {}
   },
   "walk@e": {
    "page": 0,
-   "start": 85,
+   "start": 45,
    "count": 11,
    "fps": 10,
    "loop": true,
@@ -73,7 +73,7 @@
   },
   "walk@ne": {
    "page": 0,
-   "start": 96,
+   "start": 56,
    "count": 11,
    "fps": 10,
    "loop": true,
@@ -84,7 +84,7 @@
   },
   "walk@n": {
    "page": 0,
-   "start": 107,
+   "start": 67,
    "count": 11,
    "fps": 10,
    "loop": true,
@@ -95,7 +95,7 @@
   },
   "walk@se": {
    "page": 0,
-   "start": 118,
+   "start": 78,
    "count": 11,
    "fps": 10,
    "loop": true,
@@ -106,7 +106,7 @@
   },
   "walk@s": {
    "page": 0,
-   "start": 129,
+   "start": 89,
    "count": 11,
    "fps": 10,
    "loop": true,
@@ -117,7 +117,7 @@
   },
   "run@e": {
    "page": 0,
-   "start": 140,
+   "start": 100,
    "count": 8,
    "fps": 12,
    "loop": true,
@@ -128,7 +128,7 @@
   },
   "run@ne": {
    "page": 0,
-   "start": 148,
+   "start": 108,
    "count": 8,
    "fps": 12,
    "loop": true,
@@ -139,7 +139,7 @@
   },
   "run@n": {
    "page": 0,
-   "start": 156,
+   "start": 116,
    "count": 8,
    "fps": 12,
    "loop": true,
@@ -150,7 +150,7 @@
   },
   "run@se": {
    "page": 0,
-   "start": 164,
+   "start": 124,
    "count": 8,
    "fps": 12,
    "loop": true,
@@ -161,7 +161,7 @@
   },
   "run@s": {
    "page": 0,
-   "start": 172,
+   "start": 132,
    "count": 8,
    "fps": 12,
    "loop": true,
@@ -172,295 +172,495 @@
   },
   "attack1@e": {
    "page": 0,
-   "start": 180,
+   "start": 140,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack1@ne": {
    "page": 0,
-   "start": 187,
+   "start": 147,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack1@n": {
    "page": 0,
-   "start": 194,
+   "start": 154,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack1@se": {
    "page": 0,
-   "start": 201,
+   "start": 161,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack1@s": {
    "page": 0,
-   "start": 208,
+   "start": 168,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack2@e": {
    "page": 0,
-   "start": 215,
+   "start": 175,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack2@ne": {
    "page": 0,
-   "start": 222,
+   "start": 182,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack2@n": {
    "page": 0,
-   "start": 229,
+   "start": 189,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack2@se": {
    "page": 0,
-   "start": 236,
+   "start": 196,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack2@s": {
    "page": 0,
-   "start": 243,
+   "start": 203,
    "count": 7,
-   "fps": 16,
+   "fps": 14,
    "loop": false,
    "events": {}
   },
   "attack3@e": {
    "page": 0,
-   "start": 250,
-   "count": 13,
-   "fps": 20,
+   "start": 210,
+   "count": 16,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "attack3@ne": {
    "page": 0,
-   "start": 263,
-   "count": 13,
-   "fps": 20,
+   "start": 226,
+   "count": 16,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "attack3@n": {
    "page": 0,
-   "start": 276,
-   "count": 13,
-   "fps": 20,
+   "start": 242,
+   "count": 16,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "attack3@se": {
    "page": 0,
-   "start": 289,
-   "count": 13,
-   "fps": 20,
+   "start": 258,
+   "count": 16,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "attack3@s": {
    "page": 0,
-   "start": 302,
-   "count": 13,
-   "fps": 20,
+   "start": 274,
+   "count": 16,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "leap@e": {
+   "page": 0,
+   "start": 290,
+   "count": 14,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "leap@ne": {
+   "page": 0,
+   "start": 304,
+   "count": 14,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "leap@n": {
+   "page": 0,
+   "start": 318,
+   "count": 14,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "leap@se": {
+   "page": 0,
+   "start": 332,
+   "count": 14,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "leap@s": {
+   "page": 0,
+   "start": 346,
+   "count": 14,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "heavy@e": {
    "page": 0,
-   "start": 315,
+   "start": 360,
    "count": 17,
-   "fps": 18,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "heavy@ne": {
    "page": 0,
-   "start": 332,
+   "start": 377,
    "count": 17,
-   "fps": 18,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "heavy@n": {
    "page": 0,
-   "start": 349,
+   "start": 394,
    "count": 17,
-   "fps": 18,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "heavy@se": {
    "page": 0,
-   "start": 366,
+   "start": 411,
    "count": 17,
-   "fps": 18,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "heavy@s": {
    "page": 0,
-   "start": 383,
+   "start": 428,
    "count": 17,
-   "fps": 18,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "kick@e": {
+   "page": 0,
+   "start": 445,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "kick@ne": {
+   "page": 0,
+   "start": 455,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "kick@n": {
+   "page": 0,
+   "start": 465,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "kick@se": {
+   "page": 0,
+   "start": 475,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "kick@s": {
+   "page": 0,
+   "start": 485,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "uppercut@e": {
+   "page": 0,
+   "start": 495,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "uppercut@ne": {
+   "page": 0,
+   "start": 505,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "uppercut@n": {
+   "page": 0,
+   "start": 515,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "uppercut@se": {
+   "page": 0,
+   "start": 525,
+   "count": 10,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "uppercut@s": {
+   "page": 0,
+   "start": 535,
+   "count": 10,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "cast@e": {
-   "page": 0,
-   "start": 400,
+   "page": 1,
+   "start": 0,
    "count": 10,
-   "fps": 20,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "cast@ne": {
-   "page": 0,
-   "start": 410,
+   "page": 1,
+   "start": 10,
    "count": 10,
-   "fps": 20,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "cast@n": {
-   "page": 0,
-   "start": 420,
+   "page": 1,
+   "start": 20,
    "count": 10,
-   "fps": 20,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "cast@se": {
-   "page": 0,
-   "start": 430,
+   "page": 1,
+   "start": 30,
    "count": 10,
-   "fps": 20,
+   "fps": 16,
    "loop": false,
    "events": {}
   },
   "cast@s": {
-   "page": 0,
-   "start": 440,
+   "page": 1,
+   "start": 40,
    "count": 10,
-   "fps": 20,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "guard@e": {
+   "page": 1,
+   "start": 50,
+   "count": 6,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guard@ne": {
+   "page": 1,
+   "start": 56,
+   "count": 6,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guard@n": {
+   "page": 1,
+   "start": 62,
+   "count": 6,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guard@se": {
+   "page": 1,
+   "start": 68,
+   "count": 6,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guard@s": {
+   "page": 1,
+   "start": 74,
+   "count": 6,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guardHit@e": {
+   "page": 1,
+   "start": 80,
+   "count": 8,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guardHit@ne": {
+   "page": 1,
+   "start": 88,
+   "count": 8,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guardHit@n": {
+   "page": 1,
+   "start": 96,
+   "count": 8,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guardHit@se": {
+   "page": 1,
+   "start": 104,
+   "count": 8,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "guardHit@s": {
+   "page": 1,
+   "start": 112,
+   "count": 8,
+   "fps": 18,
    "loop": false,
    "events": {}
   },
   "dodge@e": {
-   "page": 0,
-   "start": 450,
+   "page": 1,
+   "start": 120,
    "count": 9,
    "fps": 24,
    "loop": false,
    "events": {}
   },
   "dodge@ne": {
-   "page": 0,
-   "start": 459,
+   "page": 1,
+   "start": 129,
    "count": 9,
    "fps": 24,
    "loop": false,
    "events": {}
   },
   "dodge@n": {
-   "page": 0,
-   "start": 468,
+   "page": 1,
+   "start": 138,
    "count": 9,
    "fps": 24,
    "loop": false,
    "events": {}
   },
   "dodge@se": {
-   "page": 0,
-   "start": 477,
+   "page": 1,
+   "start": 147,
    "count": 9,
    "fps": 24,
    "loop": false,
    "events": {}
   },
   "dodge@s": {
-   "page": 0,
-   "start": 486,
+   "page": 1,
+   "start": 156,
    "count": 9,
    "fps": 24,
    "loop": false,
    "events": {}
   },
   "roll@e": {
-   "page": 0,
-   "start": 495,
+   "page": 1,
+   "start": 165,
    "count": 8,
    "fps": 16,
    "loop": false,
    "events": {}
   },
   "roll@ne": {
-   "page": 0,
-   "start": 503,
+   "page": 1,
+   "start": 173,
    "count": 8,
    "fps": 16,
    "loop": false,
    "events": {}
   },
   "roll@n": {
-   "page": 0,
-   "start": 511,
+   "page": 1,
+   "start": 181,
    "count": 8,
    "fps": 16,
    "loop": false,
    "events": {}
   },
   "roll@se": {
-   "page": 0,
-   "start": 519,
+   "page": 1,
+   "start": 189,
    "count": 8,
    "fps": 16,
    "loop": false,
    "events": {}
   },
   "roll@s": {
-   "page": 0,
-   "start": 527,
+   "page": 1,
+   "start": 197,
    "count": 8,
    "fps": 16,
    "loop": false,
    "events": {}
   },
   "hurt@e": {
-   "page": 0,
-   "start": 535,
+   "page": 1,
+   "start": 205,
    "count": 7,
    "fps": 20,
    "loop": false,
    "events": {}
   },
   "hurt@ne": {
-   "page": 0,
-   "start": 542,
+   "page": 1,
+   "start": 212,
    "count": 7,
    "fps": 20,
    "loop": false,
@@ -468,7 +668,7 @@
   },
   "hurt@n": {
    "page": 1,
-   "start": 0,
+   "start": 219,
    "count": 7,
    "fps": 20,
    "loop": false,
@@ -476,7 +676,7 @@
   },
   "hurt@se": {
    "page": 1,
-   "start": 7,
+   "start": 226,
    "count": 7,
    "fps": 20,
    "loop": false,
@@ -484,7 +684,7 @@
   },
   "hurt@s": {
    "page": 1,
-   "start": 14,
+   "start": 233,
    "count": 7,
    "fps": 20,
    "loop": false,
@@ -492,47 +692,47 @@
   },
   "death@e": {
    "page": 1,
-   "start": 21,
-   "count": 17,
-   "fps": 9,
+   "start": 240,
+   "count": 12,
+   "fps": 8,
    "loop": false,
    "events": {}
   },
   "death@ne": {
    "page": 1,
-   "start": 38,
-   "count": 17,
-   "fps": 9,
+   "start": 252,
+   "count": 12,
+   "fps": 8,
    "loop": false,
    "events": {}
   },
   "death@n": {
    "page": 1,
-   "start": 55,
-   "count": 17,
-   "fps": 9,
+   "start": 264,
+   "count": 12,
+   "fps": 8,
    "loop": false,
    "events": {}
   },
   "death@se": {
    "page": 1,
-   "start": 72,
-   "count": 17,
-   "fps": 9,
+   "start": 276,
+   "count": 12,
+   "fps": 8,
    "loop": false,
    "events": {}
   },
   "death@s": {
    "page": 1,
-   "start": 89,
-   "count": 17,
-   "fps": 9,
+   "start": 288,
+   "count": 12,
+   "fps": 8,
    "loop": false,
    "events": {}
   },
   "interact@e": {
    "page": 1,
-   "start": 106,
+   "start": 300,
    "count": 7,
    "fps": 12,
    "loop": false,
@@ -540,7 +740,7 @@
   },
   "interact@ne": {
    "page": 1,
-   "start": 113,
+   "start": 307,
    "count": 7,
    "fps": 12,
    "loop": false,
@@ -548,7 +748,7 @@
   },
   "interact@n": {
    "page": 1,
-   "start": 120,
+   "start": 314,
    "count": 7,
    "fps": 12,
    "loop": false,
@@ -556,7 +756,7 @@
   },
   "interact@se": {
    "page": 1,
-   "start": 127,
+   "start": 321,
    "count": 7,
    "fps": 12,
    "loop": false,
@@ -564,7 +764,7 @@
   },
   "interact@s": {
    "page": 1,
-   "start": 134,
+   "start": 328,
    "count": 7,
    "fps": 12,
    "loop": false,
@@ -572,7 +772,7 @@
   },
   "victory@e": {
    "page": 1,
-   "start": 141,
+   "start": 335,
    "count": 8,
    "fps": 6,
    "loop": true,
@@ -580,7 +780,7 @@
   },
   "victory@ne": {
    "page": 1,
-   "start": 149,
+   "start": 343,
    "count": 8,
    "fps": 6,
    "loop": true,
@@ -588,7 +788,7 @@
   },
   "victory@n": {
    "page": 1,
-   "start": 157,
+   "start": 351,
    "count": 8,
    "fps": 6,
    "loop": true,
@@ -596,7 +796,7 @@
   },
   "victory@se": {
    "page": 1,
-   "start": 165,
+   "start": 359,
    "count": 8,
    "fps": 6,
    "loop": true,
@@ -604,11 +804,196 @@
   },
   "victory@s": {
    "page": 1,
-   "start": 173,
+   "start": 367,
    "count": 8,
    "fps": 6,
    "loop": true,
    "events": {}
+  }
+ },
+ "moves": {
+  "attack1": {
+   "windows": [
+    [
+     2,
+     3
+    ]
+   ],
+   "reach": [
+    0.81,
+    1.78,
+    2.0,
+    2.22,
+    1.75,
+    0.91,
+    0.88
+   ]
+  },
+  "attack2": {
+   "windows": [
+    [
+     1,
+     1
+    ]
+   ],
+   "reach": [
+    1.81,
+    2.28,
+    1.84,
+    0.72,
+    0.72,
+    0.84,
+    0.78
+   ]
+  },
+  "attack3": {
+   "windows": [
+    [
+     1,
+     1
+    ],
+    [
+     6,
+     6
+    ],
+    [
+     10,
+     10
+    ]
+   ],
+   "reach": [
+    1.75,
+    2.22,
+    1.94,
+    0.62,
+    0.59,
+    1.94,
+    2.09,
+    1.34,
+    0.34,
+    2.0,
+    2.28,
+    1.94,
+    0.72,
+    0.75,
+    0.88,
+    0.94
+   ]
+  },
+  "leap": {
+   "windows": [
+    [
+     7,
+     8
+    ]
+   ],
+   "reach": [
+    1.0,
+    0.84,
+    0.94,
+    0.38,
+    0.34,
+    0.69,
+    2.0,
+    1.97,
+    1.91,
+    1.97,
+    0.94,
+    0.88,
+    1.03,
+    0.94
+   ]
+  },
+  "heavy": {
+   "windows": [
+    [
+     8,
+     8
+    ],
+    [
+     12,
+     14
+    ]
+   ],
+   "reach": [
+    1.0,
+    1.03,
+    1.09,
+    0.88,
+    0.75,
+    0.84,
+    1.06,
+    2.0,
+    2.19,
+    1.88,
+    0.94,
+    2.03,
+    2.12,
+    2.25,
+    2.12,
+    1.91,
+    0.91
+   ]
+  },
+  "kick": {
+   "windows": [
+    [
+     4,
+     6
+    ]
+   ],
+   "reach": [
+    0.91,
+    0.84,
+    1.06,
+    1.09,
+    1.88,
+    2.16,
+    1.81,
+    1.34,
+    1.09,
+    0.91
+   ]
+  },
+  "uppercut": {
+   "windows": [
+    [
+     4,
+     7
+    ]
+   ],
+   "reach": [
+    1.03,
+    1.31,
+    1.34,
+    1.41,
+    1.78,
+    1.47,
+    1.56,
+    1.56,
+    1.38,
+    1.12
+   ]
+  },
+  "cast": {
+   "windows": [
+    [
+     2,
+     8
+    ]
+   ],
+   "reach": [
+    0.81,
+    0.81,
+    1.19,
+    1.41,
+    1.41,
+    1.41,
+    1.41,
+    1.41,
+    1.34,
+    1.06
+   ]
   }
  }
 }

@@ -69,6 +69,17 @@ export abstract class Entity {
     return false;
   }
 
+  /**
+   * Parade parfaite : si vrai, le coup est entièrement annulé et l'attaquant
+   * reçoit `onParried`. Appelé avant tout calcul de dégâts.
+   */
+  tryParry(_from: Entity, _hit: HitInfo, _ctx: GameContext): boolean {
+    return false;
+  }
+
+  /** Le coup de cette entité vient d'être paré par `by` (déséquilibre). */
+  onParried(_by: Entity, _ctx: GameContext): void {}
+
   /** Réaction à un coup déjà résolu (dégâts appliqués par le système de combat). */
   abstract onHit(result: DamageResult, hit: HitInfo, from: Entity, ctx: GameContext): void;
 
