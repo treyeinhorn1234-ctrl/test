@@ -7,7 +7,7 @@
 --
 -- Le script :
 --   1. retrouve dans Workspace les modèles importés (par leur nom de fichier) ;
---   2. corrige leur échelle si l'importateur l'a changée ;
+--   2. annule la rotation que l'importateur met sur chaque MeshPart, et corrige l'échelle ;
 --   3. retrouve comment l'importateur a tourné le modèle, en comparant la position de chaque
 --      MeshPart à celle attendue, puis place le pivot sur l'origine de la salle ou du prop ;
 --   4. règle les propriétés des MeshParts (ancrage, collisions) ;
@@ -129,6 +129,15 @@ return function()
 		local expMin = Vector3.new(table.unpack(info.min))
 		local expMax = Vector3.new(table.unpack(info.max))
 		local expSize = expMax - expMin
+
+		-- L'importateur 3D de Studio tourne chaque MeshPart de 180° autour de son propre centre
+		-- (Orientation 0, 180, 0) sans tourner son maillage : on annule cette rotation
+		-- pièce par pièce, en gardant les positions. Vérifié dans Studio sur lockroom.
+		for _, part in model:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.CFrame = CFrame.new(part.Position)
+			end
+		end
 
 		local lo, hi = worldBounds(model)
 		local ratio = expSize.Magnitude / math.max((hi - lo).Magnitude, 1e-6)
