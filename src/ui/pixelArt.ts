@@ -1,6 +1,6 @@
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
-import { getVarynSheet, VARYN_PORTRAIT_RECT } from '../assets/sprites/varynSprite';
+import { varynPortraitSource } from '../assets/character/varynCharacter';
 
 /**
  * Éléments graphiques de l'interface générés en pixel art : cadres 9-slice,
@@ -36,7 +36,6 @@ function frame(size: number, slice: number, colors: { outer: number; iron: numbe
 
 /** Portrait de Varyn : recadrage du heaume sur la première frame du sprite. */
 export function portrait(): string {
-  const sheet = getVarynSheet();
   const c = document.createElement('canvas');
   c.width = 40;
   c.height = 40;
@@ -47,8 +46,8 @@ export function portrait(): string {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 40, 40);
   ctx.imageSmoothingEnabled = false;
-  const r = VARYN_PORTRAIT_RECT;
-  ctx.drawImage(sheet.debugCanvas, r.x, r.y, r.w, r.h, 0, 0, 40, 40);
+  const r = varynPortraitSource();
+  ctx.drawImage(r.canvas, r.x, r.y, r.w, r.h, 0, 0, 40, 40);
   return c.toDataURL();
 }
 

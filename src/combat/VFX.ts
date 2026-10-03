@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
 import type { ParticleSystem } from '../rendering/ParticleSystem';
-import type { SpriteActor } from '../entities/SpriteActor';
+import type { Actor } from '../entities/Actor';
 import { randRange } from '../utils/math';
 import { crackTexture, createArcMaterial, impactTexture } from './VFXShapes';
 
@@ -343,10 +343,11 @@ export class VFX {
   }
 
   /** Image rémanente violette (esquive dans l'ombre). */
-  afterimage(actor: SpriteActor): void {
-    let g = this.ghosts[this.ghostIndex % 6];
+  afterimage(actor: Actor): void {
+    const slot = this.ghostIndex++ % 6;
+    let g = this.ghosts[slot];
+    const tex = actor.ghostTexture(slot);
     if (!g) {
-      const tex = actor.sheet.color.clone();
       const mesh = new THREE.Mesh(
         actor.mesh.geometry,
         new THREE.MeshBasicMaterial({
@@ -354,13 +355,13 @@ export class VFX {
           blending: THREE.AdditiveBlending, alphaTest: 0.3, side: THREE.DoubleSide,
         }),
       );
-      mesh.rotation.copy(actor.mesh.rotation);
       this.scene.add(mesh);
       g = { mesh, tex, life: 0, max: 0.3 };
-      this.ghosts.push(g);
+      this.ghosts[slot] = g;
     }
-    this.ghostIndex++;
-    actor.copyFrameTo(g.tex);
+    g.mesh.geometry = actor.mesh.geometry;
+    (g.mesh.material as THREE.MeshBasicMaterial).map = tex;
+    g.mesh.rotation.copy(actor.mesh.rotation);
     g.mesh.position.copy(actor.root.position);
     g.mesh.position.y += actor.mesh.position.y;
     g.life = g.max;

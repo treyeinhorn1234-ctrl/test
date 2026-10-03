@@ -1,4 +1,9 @@
-import type { ClipInfo, SpriteSheet } from './SpriteSheet';
+import type { ClipInfo } from './SpriteSheet';
+
+/** Tout ce qui fournit une table de clips (planche ou rendu en direct). */
+export interface ClipSource {
+  clips: Map<string, ClipInfo>;
+}
 
 /**
  * Lecteur d'animation image par image. Pilote un index de frame à partir
@@ -15,7 +20,7 @@ export class AnimationPlayer {
   finished = false;
   private pendingEvents: string[] = [];
 
-  constructor(private readonly sheet: SpriteSheet, initial: string) {
+  constructor(private readonly sheet: ClipSource, initial: string) {
     this.clip = this.get(initial);
     this.baseName = initial;
   }

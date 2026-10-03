@@ -2,7 +2,10 @@
  * Registre des images sources (sprites dessinés) chargées au démarrage.
  * Les générateurs de planches lisent les pixels d'ici de façon synchrone.
  */
-import varynUrl from './varyn.png';
+import varynUrl from '../character/varyn/source.png';
+
+/** Calques du personnage (dossiers body/, head/, arms/, legs/, cape/, weapon/). */
+const PART_URLS = import.meta.glob('../character/*/**/*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 
 export interface Pixels {
   width: number;
@@ -14,6 +17,8 @@ const images = new Map<string, Pixels>();
 
 const SOURCES: Record<string, string> = {
   varyn: varynUrl,
+  // Clé : « character/<nom>/<dossier>/<fichier>.png »
+  ...Object.fromEntries(Object.entries(PART_URLS).map(([k, v]) => [k.replace('../', ''), v])),
 };
 
 async function load(url: string): Promise<Pixels> {

@@ -1,45 +1,55 @@
-import { debugRigCanvas, getVarynSheet } from '../assets/sprites/varynSprite';
 import { getSkeletonSheet } from '../assets/sprites/skeletonSprite';
-import type { SpriteSheet } from '../entities/animation/SpriteSheet';
+import { FRAME_H, FRAME_W, renderPose, VARYN_CLIPS, type View } from '../assets/character/varynCharacter';
 
 /**
- * Visualiseur de planches de sprites pour l'itération artistique.
- * - `?debug=sprites` : planches complètes
- * - `?debug=sprites&who=varyn&clip=idle&zoom=6` : un clip agrandi
+ * Visualiseur pour l'itération artistique.
+ * - `?debug=sprites` : Varyn, 8 directions × frames du clip `clip` (idle par défaut)
+ *   et la planche du squelette.
+ * - `&clip=attack1&zoom=3&bg=%23c8c4cc` : clip, agrandissement, fond.
  */
+const DIRS: { label: string; view: View; flip: boolean }[] = [
+  { label: 'N', view: 'N', flip: false }, { label: 'NE', view: 'NE', flip: false },
+  { label: 'E', view: 'E', flip: false }, { label: 'SE', view: 'SE', flip: false },
+  { label: 'S', view: 'S', flip: false }, { label: 'SW', view: 'SE', flip: true },
+  { label: 'W', view: 'E', flip: true }, { label: 'NW', view: 'NE', flip: true },
+];
+
 export function showSpriteViewer(root: HTMLElement): void {
   const q = new URLSearchParams(location.search);
   root.innerHTML = '';
   root.style.cssText = 'background:#2a2433;padding:12px;overflow:auto;height:100vh;box-sizing:border-box';
-  const sheets: [string, SpriteSheet][] = [['varyn', getVarynSheet()], ['skeleton', getSkeletonSheet()]];
-  if (q.get('rig')) {
-    const cv = debugRigCanvas();
-    cv.style.cssText = `image-rendering:pixelated;width:${cv.width * 7}px;background:#c8c4cc`;
-    root.appendChild(cv);
-    return;
-  }
-  const clipName = q.get('clip');
-  if (clipName) {
-    const sheet = sheets.find(([n]) => n === (q.get('who') ?? 'varyn'))![1];
-    const clip = sheet.clips.get(clipName)!;
-    const zoom = Number(q.get('zoom') ?? 6);
-    const cv = document.createElement('canvas');
-    cv.width = clip.count * sheet.frameW * zoom;
-    cv.height = sheet.frameH * zoom;
-    const ctx = cv.getContext('2d')!;
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = q.get('bg') ?? '#ffffff';
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    ctx.drawImage(sheet.debugCanvas, 0, clip.row * sheet.frameH, clip.count * sheet.frameW, sheet.frameH, 0, 0, cv.width, cv.height);
-    root.appendChild(cv);
-    return;
-  }
-  for (const [name, sheet] of sheets) {
-    const title = document.createElement('div');
-    title.textContent = `${name} — ${[...sheet.clips.keys()].join(', ')}`;
-    title.style.cssText = 'color:#ddd;font:14px monospace;margin:8px 0';
-    const cv = sheet.debugCanvas;
-    cv.style.cssText = `image-rendering:pixelated;width:${cv.width * (cv.width > 800 ? 2 : 3)}px;background:#8a8494`;
-    root.append(title, cv);
+  const clipName = q.get('clip') ?? 'idle';
+  const zoom = Number(q.get('zoom') ?? 2);
+  const clip = VARYN_CLIPS.find((c) => c.name === clipName) ?? VARYN_CLIPS[0];
+  const cv = document.createElement('canvas');
+  const n = clip.frames.length;
+  cv.width = n * FRAME_W * zoom;
+  cv.height = DIRS.length * FRAME_H * zoom;
+  const ctx = cv.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = q.get('bg') ?? '#8a8494';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  DIRS.forEach((d, row) => {
+    clip.frames.forEach((pose, col) => {
+      const img = renderPose(pose, d.view, (col / n) * Math.PI * 2).color.toCanvas();
+      ctx.save();
+      const x = col * FRAME_W * zoom;
+      const y = row * FRAME_H * zoom;
+      if (d.flip) {
+        ctx.translate(x + FRAME_W * zoom, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, 0, 0, FRAME_W * zoom, FRAME_H * zoom);
+      } else ctx.drawImage(img, x, y, FRAME_W * zoom, FRAME_H * zoom);
+      ctx.restore();
+    });
+    ctx.fillStyle = '#ffe680';
+    ctx.font = `${12 * zoom}px monospace`;
+    ctx.fillText(d.label, 4, row * FRAME_H * zoom + 14 * zoom);
+  });
+  root.appendChild(cv);
+  if (q.get('who') === 'skeleton') {
+    const s = getSkeletonSheet().debugCanvas;
+    s.style.cssText = `image-rendering:pixelated;width:${s.width * 2}px;background:#8a8494;display:block;margin-top:12px`;
+    root.appendChild(s);
   }
 }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { CombatStats } from '../combat/Stats';
 import type { DamageResult, HitInfo } from '../combat/Damage';
 import type { GameContext } from '../core/GameContext';
-import { SpriteActor } from './SpriteActor';
+import type { Actor } from './Actor';
 
 export type Faction = 'player' | 'enemy';
 
@@ -38,7 +38,7 @@ export abstract class Entity {
     readonly faction: Faction,
     readonly radius: number,
     readonly stats: CombatStats,
-    readonly actor: SpriteActor,
+    readonly actor: Actor,
   ) {}
 
   get forward(): THREE.Vector3 {
@@ -96,11 +96,7 @@ export abstract class Entity {
     const fz = Math.sin(this.facing);
     const screenX = fx * ctx.cameraRig.groundRight.x + fz * ctx.cameraRig.groundRight.z;
     const screenUp = fx * ctx.cameraRig.groundUp.x + fz * ctx.cameraRig.groundUp.z;
-    if (screenX > 0.12) actor.setScreenFacing(true);
-    else if (screenX < -0.12) actor.setScreenFacing(false);
-    // Vue de dos quand le personnage s'éloigne de la caméra (avec hystérésis).
-    if (screenUp > 0.5) actor.anim.back = true;
-    else if (screenUp < 0.25) actor.anim.back = false;
+    actor.setFacing(screenX, screenUp);
     this.flashTime = Math.max(0, this.flashTime - dt);
     actor.uniforms.uFlash.value = this.flashTime > 0 ? 0.75 : 0;
     actor.update(dt);

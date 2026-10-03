@@ -1,7 +1,7 @@
 import type { CombatStats } from '../combat/Stats';
 import type { GameContext } from '../core/GameContext';
 import { Entity } from '../entities/Entity';
-import type { SpriteActor } from '../entities/SpriteActor';
+import type { Actor } from '../entities/Actor';
 
 /**
  * Base commune des ennemis : nom affiché, récompense d'XP, barre de vie,
@@ -19,7 +19,7 @@ export abstract class Enemy extends Entity {
     readonly xpReward: number,
     radius: number,
     stats: CombatStats,
-    actor: SpriteActor,
+    actor: Actor,
   ) {
     super('enemy', radius, stats, actor);
   }

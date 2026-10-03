@@ -8,9 +8,9 @@ Tous les visuels du prototype sont **générés procéduralement** en pixel art
 | `pixel/PixelCanvas.ts` | Toile pixel art : primitives, contour automatique, conversion en texture « nearest » |
 | `palette.ts` | Palette maîtresse (armure, cape, énergie abyssale, os, pierre, feu…) |
 | `sprites/frontRig.ts` | Outils : plaques d'armure ombrées et gravées, volutes, gemmes, flammes animées, traînées, rotation, poses clés |
-| `images/varyn.png` | Sprite dessiné de Varyn (106×121, grille native récupérée depuis la référence ×6) |
-| `sprites/boneRig.ts` | Rig squelettique 2D générique : segmentation par os, sous-couche reconstituée, transformations hiérarchiques, rendu par transformation inverse |
-| `sprites/varynSprite.ts` | Squelette de Varyn (17 os) et ses poses articulaires — idle, walk, run, 3 attaques, heavy, dodge, roll, hurt, death, cast, interact, victory (`?debug=sprites&rig=1` montre les os) |
+| `character/varyn/` | Sprite source de Varyn (106×121) découpé en calques : `body/`, `head/`, `arms/`, `legs/`, `cape/`, `weapon/` + `rig.json` (pivots, hiérarchie, ordre des calques). Régénérer : `python3 tools/build_varyn_parts.py` |
+| `character/varynCharacter.ts` | Rig, poses articulaires, 8 directions, rendu en direct avec cache |
+| `sprites/boneRig.ts` | Outils de rig 2D : transformations affines, segmentation, sous-couche |
 | `sprites/skeletonSprite.ts` | Squelette gardien 192×176 (rig ×2), face + dos — idle, walk, windup, attack, recover, block, hurt, death, rise |
 | `sprites/propSprites.ts` | Statues des rois, flammes, bougies, ossements, bannières, cristal, orbe de sang |
 | `textures/cryptTextures.ts` | Dalles, briques, piliers, sarcophages, porte scellée (couleur + émission) |

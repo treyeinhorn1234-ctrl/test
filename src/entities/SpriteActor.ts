@@ -3,6 +3,7 @@ import { CAMERA_PITCH, CAMERA_YAW } from '../rendering/IsoCamera';
 import { createSpriteMaterial, type SpriteUniforms } from '../rendering/SpriteMaterial';
 import { AnimationPlayer } from './animation/AnimationPlayer';
 import type { SpriteSheet } from './animation/SpriteSheet';
+import type { Actor } from './Actor';
 
 /** Compensation du raccourci vertical : un panneau vertical vu à CAMERA_PITCH. */
 export const VERTICAL_STRETCH = 1 / Math.cos(CAMERA_PITCH);
@@ -23,7 +24,7 @@ export function tiltSpriteNormals(geo: THREE.BufferGeometry): void {
  * caméra, pivot aux pieds, animé depuis une planche de sprites, avec ombre
  * portée en pastille. Le miroir horizontal gère l'orientation gauche/droite.
  */
-export class SpriteActor {
+export class SpriteActor implements Actor {
   readonly root = new THREE.Group();
   readonly mesh: THREE.Mesh;
   readonly anim: AnimationPlayer;
@@ -77,6 +78,26 @@ export class SpriteActor {
 
     this.anim = new AnimationPlayer(sheet, initialClip);
     this.applyFrame();
+  }
+
+  private ghostTex: THREE.Texture[] = [];
+
+  setFacing(screenX: number, screenUp: number): void {
+    if (screenX > 0.12) this.setScreenFacing(true);
+    else if (screenX < -0.12) this.setScreenFacing(false);
+    // Vue de dos quand le personnage s'éloigne de la caméra (avec hystérésis).
+    if (screenUp > 0.5) this.anim.back = true;
+    else if (screenUp < 0.25) this.anim.back = false;
+  }
+
+  ghostTexture(slot: number): THREE.Texture {
+    let t = this.ghostTex[slot];
+    if (!t) {
+      t = this.sheet.color.clone();
+      this.ghostTex[slot] = t;
+    }
+    this.copyFrameTo(t);
+    return t;
   }
 
   /** Copie la frame courante (UV) vers une autre texture de la même planche. */

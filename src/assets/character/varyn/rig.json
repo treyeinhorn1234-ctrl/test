@@ -1,0 +1,296 @@
+{
+  "source": "source.png",
+  "width": 106,
+  "height": 121,
+  "pivots": {
+    "waist": [
+      60,
+      62
+    ],
+    "neck": [
+      61,
+      24
+    ],
+    "nShoulder": [
+      46,
+      33
+    ],
+    "nElbow": [
+      39,
+      48
+    ],
+    "nWrist": [
+      42,
+      57
+    ],
+    "nHand": [
+      44,
+      61
+    ],
+    "fShoulder": [
+      73,
+      34
+    ],
+    "fElbow": [
+      77,
+      50
+    ],
+    "fWrist": [
+      79,
+      61
+    ],
+    "fHand": [
+      80,
+      64
+    ],
+    "nHip": [
+      51,
+      67
+    ],
+    "nKnee": [
+      49,
+      82
+    ],
+    "nAnkle": [
+      45,
+      103
+    ],
+    "nToe": [
+      42,
+      112
+    ],
+    "fHip": [
+      64,
+      70
+    ],
+    "fKnee": [
+      67,
+      87
+    ],
+    "fAnkle": [
+      71,
+      102
+    ],
+    "fToe": [
+      80,
+      109
+    ],
+    "pelvis": [
+      60,
+      66
+    ],
+    "neckBase": [
+      61,
+      27
+    ],
+    "capeFront": [
+      59,
+      89
+    ]
+  },
+  "swordTip": [
+    98.6,
+    107.3
+  ],
+  "bones": [
+    {
+      "id": "pelvis",
+      "parent": null,
+      "pivot": "pelvis",
+      "file": "body/pelvis.png",
+      "core": true
+    },
+    {
+      "id": "cape",
+      "parent": null,
+      "pivot": "pelvis",
+      "file": "cape/cape_rear.png",
+      "core": true
+    },
+    {
+      "id": "torso",
+      "parent": "pelvis",
+      "pivot": "waist",
+      "file": "body/torso.png",
+      "core": true
+    },
+    {
+      "id": "capeFront",
+      "parent": "pelvis",
+      "pivot": "capeFront",
+      "file": "cape/cape_front.png",
+      "core": false
+    },
+    {
+      "id": "neck",
+      "parent": "torso",
+      "pivot": "neckBase",
+      "file": "body/neck.png",
+      "core": false
+    },
+    {
+      "id": "head",
+      "parent": "neck",
+      "pivot": "neck",
+      "file": "head/head.png",
+      "core": false
+    },
+    {
+      "id": "nPad",
+      "parent": "torso",
+      "pivot": "nShoulder",
+      "file": "body/shoulder_near.png",
+      "core": false
+    },
+    {
+      "id": "fPad",
+      "parent": "torso",
+      "pivot": "fShoulder",
+      "file": "body/shoulder_far.png",
+      "core": false
+    },
+    {
+      "id": "nUpper",
+      "parent": "torso",
+      "pivot": "nShoulder",
+      "file": "arms/near_upper.png",
+      "core": false
+    },
+    {
+      "id": "nFore",
+      "parent": "nUpper",
+      "pivot": "nElbow",
+      "file": "arms/near_fore.png",
+      "core": false
+    },
+    {
+      "id": "nHand",
+      "parent": "nFore",
+      "pivot": "nWrist",
+      "file": "arms/near_hand.png",
+      "core": false
+    },
+    {
+      "id": "sword",
+      "parent": "nHand",
+      "pivot": "nHand",
+      "file": "weapon/eclipse.png",
+      "core": false
+    },
+    {
+      "id": "fUpper",
+      "parent": "torso",
+      "pivot": "fShoulder",
+      "file": "arms/far_upper.png",
+      "core": false
+    },
+    {
+      "id": "fFore",
+      "parent": "fUpper",
+      "pivot": "fElbow",
+      "file": "arms/far_fore.png",
+      "core": false
+    },
+    {
+      "id": "fHand",
+      "parent": "fFore",
+      "pivot": "fWrist",
+      "file": "arms/far_hand.png",
+      "core": false
+    },
+    {
+      "id": "nThigh",
+      "parent": "pelvis",
+      "pivot": "nHip",
+      "file": "legs/near_thigh.png",
+      "core": false
+    },
+    {
+      "id": "nShin",
+      "parent": "nThigh",
+      "pivot": "nKnee",
+      "file": "legs/near_shin.png",
+      "core": false
+    },
+    {
+      "id": "nFoot",
+      "parent": "nShin",
+      "pivot": "nAnkle",
+      "file": "legs/near_foot.png",
+      "core": false
+    },
+    {
+      "id": "fThigh",
+      "parent": "pelvis",
+      "pivot": "fHip",
+      "file": "legs/far_thigh.png",
+      "core": false
+    },
+    {
+      "id": "fShin",
+      "parent": "fThigh",
+      "pivot": "fKnee",
+      "file": "legs/far_shin.png",
+      "core": false
+    },
+    {
+      "id": "fFoot",
+      "parent": "fShin",
+      "pivot": "fAnkle",
+      "file": "legs/far_foot.png",
+      "core": false
+    }
+  ],
+  "backViewLayers": {
+    "head": "head/head_back.png",
+    "capeDrape": "cape/cape_drape_back.png"
+  },
+  "layerOrder": {
+    "front": [
+      "cape",
+      "fUpper",
+      "fFore",
+      "fHand",
+      "fThigh",
+      "fShin",
+      "fFoot",
+      "pelvis",
+      "capeFront",
+      "nThigh",
+      "nShin",
+      "nFoot",
+      "torso",
+      "fPad",
+      "neck",
+      "head",
+      "nUpper",
+      "nFore",
+      "sword",
+      "nHand",
+      "nPad"
+    ],
+    "back": [
+      "sword",
+      "nHand",
+      "capeFront",
+      "fThigh",
+      "fShin",
+      "fFoot",
+      "nThigh",
+      "nShin",
+      "nFoot",
+      "pelvis",
+      "torso",
+      "neck",
+      "capeDrape",
+      "fUpper",
+      "fFore",
+      "fHand",
+      "fPad",
+      "head",
+      "nUpper",
+      "nFore",
+      "nPad"
+    ]
+  }
+}

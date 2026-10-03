@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { PAL } from '../assets/palette';
-import { getVarynSheet } from '../assets/sprites/varynSprite';
+import { FRAME_H, FRAME_W, getVarynFrames, PIVOT_X, PIVOT_Y, VARYN_CLIP_INFO, viewForDirection, type View } from '../assets/character/varynCharacter';
+import { LiveSpriteActor } from '../entities/LiveSpriteActor';
 import type { DamageResult, HitInfo } from '../combat/Damage';
 import { createStats } from '../combat/Stats';
 import type { GameContext } from '../core/GameContext';
 import { StateMachine } from '../engine/StateMachine';
 import { Entity } from '../entities/Entity';
-import { SpriteActor } from '../entities/SpriteActor';
 import { Experience } from '../progression/Experience';
 import type { Interactable } from '../world/Level';
 import { angleDiff, damp } from '../utils/math';
@@ -63,7 +63,24 @@ export class Player extends Entity {
         physAtk: 14, magAtk: 16, armor: 0.1, magicResist: 0.1,
         critChance: 0.12, critMult: 1.8,
       }),
-      new SpriteActor(getVarynSheet(), 'idle', 0.9, 1.1, 1.6, 1.1),
+      new LiveSpriteActor<View>(
+        {
+          clips: VARYN_CLIP_INFO,
+          frameW: FRAME_W,
+          frameH: FRAME_H,
+          pivotX: PIVOT_X,
+          pivotY: PIVOT_Y,
+          pixelsPerUnit: 32,
+          get: (clip, frame, view) => getVarynFrames().get(clip, frame, view),
+          viewFor: viewForDirection,
+        },
+        'idle',
+        'SE',
+        0.9,
+        1.1,
+        1.6,
+        1.1,
+      ),
     );
     this.mass = 3;
     this.centerHeight = 1.8;
