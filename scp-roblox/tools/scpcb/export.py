@@ -119,7 +119,8 @@ def write_obj(
             normals = _normals(pts, tris)
             mat = _material_name(part.texture, part.alpha)
             materials[mat] = part.texture
-            f.write(f"o {obj_name}\n")
+            # L'importateur de Roblox découpe le fichier selon les groupes « g » (pas les objets « o »)
+            f.write(f"o {obj_name}\ng {obj_name}\n")
             f.writelines(f"v {x:.5f} {y:.5f} {z:.5f}\n" for x, y, z in pts)
             f.writelines(f"vt {u:.5f} {1.0 - v:.5f}\n" for u, v in part.uvs)
             f.writelines(f"vn {x:.4f} {y:.4f} {z:.4f}\n" for x, y, z in normals)

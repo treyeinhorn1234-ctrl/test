@@ -190,8 +190,13 @@ return function()
 				warn(`  {model.Name} : calage approximatif (écart moyen {string.format("%.2f", bestErr)} studs). Envoie ce message au développeur.`)
 			end
 		else
-			-- Noms de MeshParts inconnus : on se rabat sur la boîte englobante
-			warn(`  {model.Name} : MeshParts non reconnues ({table.concat(seen, ", ")}), calage par boîte englobante.`)
+			-- Noms de MeshParts inconnus : on se rabat sur la boîte englobante, sans pouvoir
+			-- détecter une rotation de l'importateur
+			if seen[1] == "default" then
+				warn(`  {model.Name} : importé en un seul morceau (« default »). Supprime-le, retélécharge les modèles (nouvelle version) et réimporte ce .obj.`)
+			else
+				warn(`  {model.Name} : MeshParts non reconnues ({table.concat(seen, ", ")}), calage par boîte englobante.`)
+			end
 			model.WorldPivot = CFrame.new((lo + hi) / 2 - (expMin + expMax) / 2)
 		end
 
@@ -213,6 +218,8 @@ return function()
 				if string.find(part.Name, "_alpha") then
 					part.CastShadow = false
 				end
+				-- Pas de version simplifiée à distance : elle déforme les murs fins
+				part.RenderFidelity = Enum.RenderFidelity.Precise
 			elseif part:IsA("BasePart") then
 				part.Anchored = true
 			end
