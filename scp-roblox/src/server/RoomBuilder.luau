@@ -180,6 +180,11 @@ local function newCollider(): Part
 	part.CastShadow = false
 	part.Transparency = 1
 	part.Material = Enum.Material.SmoothPlastic
+	-- Débogage : attribut SCP_ShowColliders sur Workspace pour voir les collisions en rouge
+	if workspace:GetAttribute("SCP_ShowColliders") == true then
+		part.Transparency = 0.7
+		part.Color = Color3.new(1, 0, 0)
+	end
 	return part
 end
 
