@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CAMERA_PITCH, CAMERA_YAW } from '../rendering/IsoCamera';
 import { createSpriteMaterial, type SpriteUniforms } from '../rendering/SpriteMaterial';
 import { AnimationPlayer } from './animation/AnimationPlayer';
-import type { SpriteSheet } from './animation/SpriteSheet';
+import { cellOf, type SpriteSheet } from './animation/SpriteSheet';
 import type { Actor } from './Actor';
 
 /** Compensation du raccourci vertical : un panneau vertical vu à CAMERA_PITCH. */
@@ -30,8 +30,10 @@ export class SpriteActor implements Actor {
   readonly mesh: THREE.Mesh;
   readonly anim: AnimationPlayer;
   readonly uniforms: SpriteUniforms;
-  private readonly colorTex: THREE.Texture;
-  private readonly emissiveTex: THREE.Texture;
+  /** Copies des textures de chaque page (propres à cet acteur : UV indépendants). */
+  private readonly colorTex: THREE.Texture[];
+  private readonly emissiveTex: THREE.Texture[];
+  private page = -1;
   private readonly shadow: THREE.Mesh;
   readonly material: THREE.MeshLambertMaterial;
   flipX = false;
@@ -43,12 +45,12 @@ export class SpriteActor implements Actor {
   lift = 0;
 
   constructor(readonly sheet: SpriteSheet, initialClip: string, shadowRadius = 0.6, depthBias = 0.6, emissiveIntensity = 1.6, fillLight = 0.7) {
-    this.colorTex = sheet.color.clone();
-    this.emissiveTex = sheet.emissive.clone();
+    this.colorTex = sheet.pages.map((pg) => pg.color.clone());
+    this.emissiveTex = sheet.pages.map((pg) => pg.emissive.clone());
     const { material, uniforms } = createSpriteMaterial(
-      this.colorTex,
-      this.emissiveTex,
-      new THREE.Vector2(sheet.cols * sheet.frameW, sheet.rows * sheet.frameH),
+      this.colorTex[0],
+      this.emissiveTex[0],
+      new THREE.Vector2(sheet.cols * sheet.frameW, sheet.pages[0].rows * sheet.frameH),
       { depthBias, emissiveIntensity, fillLight },
     );
     this.material = material;
@@ -84,10 +86,16 @@ export class SpriteActor implements Actor {
   private ghostTex: THREE.Texture[] = [];
 
   /**
-   * Choisit la direction parmi bas / haut / côté (style RPG Maker), avec une
-   * hystérésis aux diagonales pour éviter le scintillement.
+   * Choisit la direction selon le déplacement à l'écran, avec une hystérésis
+   * pour éviter le scintillement aux frontières :
+   * - planche à 4 directions : bas / haut / côté (miroir pour la gauche) ;
+   * - planche à 8 directions : s, se, e, ne, n (miroir pour so, o, no).
    */
   setFacing(screenX: number, screenUp: number): void {
+    if (this.sheet.directions === 8) {
+      this.setFacing8(screenX, screenUp);
+      return;
+    }
     const ax = Math.abs(screenX), ay = Math.abs(screenUp);
     const cur = this.anim.variant;
     let dir = cur;
@@ -98,20 +106,41 @@ export class SpriteActor implements Actor {
     else this.flipX = false;
   }
 
+  /** Secteur de 45° courant (0 = est, sens trigonométrique à l'écran). */
+  private sector = 6;
+
+  private setFacing8(screenX: number, screenUp: number): void {
+    if (Math.abs(screenX) + Math.abs(screenUp) < 1e-4) return;
+    const a = Math.atan2(screenUp, screenX);
+    const step = Math.PI / 4;
+    // Hystérésis : on ne change de secteur qu'au-delà de 30° du centre actuel.
+    let d = a - this.sector * step;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    if (Math.abs(d) > step * 0.67) this.sector = (Math.round(a / step) + 8) % 8;
+    // Secteurs : 0 e, 1 ne, 2 n, 3 no, 4 o, 5 so, 6 s, 7 se.
+    const map: [string, boolean][] = [['e', false], ['ne', false], ['n', false], ['ne', true], ['e', true], ['se', true], ['s', false], ['se', false]];
+    const [variant, mirror] = map[this.sector];
+    this.anim.variant = variant;
+    this.flipX = mirror;
+  }
+
   ghostTexture(slot: number): THREE.Texture {
     let t = this.ghostTex[slot];
-    if (!t) {
-      t = this.sheet.color.clone();
+    const page = this.anim.clip.page;
+    if (!t || t.image !== this.sheet.pages[page].color.image) {
+      t?.dispose();
+      t = this.sheet.pages[page].color.clone();
       this.ghostTex[slot] = t;
     }
     this.copyFrameTo(t);
     return t;
   }
 
-  /** Copie la frame courante (UV) vers une autre texture de la même planche. */
+  /** Copie la frame courante (UV) vers une autre texture de la même page. */
   copyFrameTo(tex: THREE.Texture): void {
-    tex.repeat.copy(this.colorTex.repeat);
-    tex.offset.copy(this.colorTex.offset);
+    const cur = this.colorTex[Math.max(0, this.page)];
+    tex.repeat.copy(cur.repeat);
+    tex.offset.copy(cur.offset);
   }
 
   setShadowOpacity(o: number): void {
@@ -126,12 +155,20 @@ export class SpriteActor implements Actor {
 
   private applyFrame(): void {
     const s = this.sheet;
-    const col = this.anim.frame;
-    const row = this.anim.clip.row;
+    const clip = this.anim.clip;
+    const pg = s.pages[clip.page];
+    if (clip.page !== this.page) {
+      // Changement de page d'atlas : on rebranche les textures du matériau.
+      this.page = clip.page;
+      this.material.map = this.colorTex[clip.page];
+      this.material.emissiveMap = this.emissiveTex[clip.page];
+      this.uniforms.uSheetSize.value.set(s.cols * s.frameW, pg.rows * s.frameH);
+    }
+    const { col, row } = cellOf(s, clip, this.anim.frame);
     const fw = 1 / s.cols;
-    const fh = 1 / s.rows;
+    const fh = 1 / pg.rows;
     const y = 1 - (row + 1) * fh;
-    for (const t of [this.colorTex, this.emissiveTex]) {
+    for (const t of [this.colorTex[clip.page], this.emissiveTex[clip.page]]) {
       if (this.flipX) {
         t.repeat.set(-fw, fh);
         t.offset.set((col + 1) * fw, y);
@@ -145,8 +182,7 @@ export class SpriteActor implements Actor {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();
-    this.colorTex.dispose();
-    this.emissiveTex.dispose();
+    for (const t of [...this.colorTex, ...this.emissiveTex, ...this.ghostTex]) t?.dispose();
     this.shadow.geometry.dispose();
     (this.shadow.material as THREE.Material).dispose();
   }

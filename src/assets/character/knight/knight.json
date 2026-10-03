@@ -1,0 +1,614 @@
+{
+ "frameW": 184,
+ "frameH": 160,
+ "cols": 22,
+ "pages": [
+  {
+   "h": 4000
+  },
+  {
+   "h": 1440
+  }
+ ],
+ "pivotX": 92,
+ "pivotY": 124,
+ "directions": [
+  "e",
+  "ne",
+  "n",
+  "se",
+  "s"
+ ],
+ "clips": {
+  "idle@e": {
+   "page": 0,
+   "start": 0,
+   "count": 17,
+   "fps": 7,
+   "loop": true,
+   "events": {}
+  },
+  "idle@ne": {
+   "page": 0,
+   "start": 17,
+   "count": 17,
+   "fps": 7,
+   "loop": true,
+   "events": {}
+  },
+  "idle@n": {
+   "page": 0,
+   "start": 34,
+   "count": 17,
+   "fps": 7,
+   "loop": true,
+   "events": {}
+  },
+  "idle@se": {
+   "page": 0,
+   "start": 51,
+   "count": 17,
+   "fps": 7,
+   "loop": true,
+   "events": {}
+  },
+  "idle@s": {
+   "page": 0,
+   "start": 68,
+   "count": 17,
+   "fps": 7,
+   "loop": true,
+   "events": {}
+  },
+  "walk@e": {
+   "page": 0,
+   "start": 85,
+   "count": 11,
+   "fps": 10,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "5": "step"
+   }
+  },
+  "walk@ne": {
+   "page": 0,
+   "start": 96,
+   "count": 11,
+   "fps": 10,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "5": "step"
+   }
+  },
+  "walk@n": {
+   "page": 0,
+   "start": 107,
+   "count": 11,
+   "fps": 10,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "5": "step"
+   }
+  },
+  "walk@se": {
+   "page": 0,
+   "start": 118,
+   "count": 11,
+   "fps": 10,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "5": "step"
+   }
+  },
+  "walk@s": {
+   "page": 0,
+   "start": 129,
+   "count": 11,
+   "fps": 10,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "5": "step"
+   }
+  },
+  "run@e": {
+   "page": 0,
+   "start": 140,
+   "count": 8,
+   "fps": 12,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "4": "step"
+   }
+  },
+  "run@ne": {
+   "page": 0,
+   "start": 148,
+   "count": 8,
+   "fps": 12,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "4": "step"
+   }
+  },
+  "run@n": {
+   "page": 0,
+   "start": 156,
+   "count": 8,
+   "fps": 12,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "4": "step"
+   }
+  },
+  "run@se": {
+   "page": 0,
+   "start": 164,
+   "count": 8,
+   "fps": 12,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "4": "step"
+   }
+  },
+  "run@s": {
+   "page": 0,
+   "start": 172,
+   "count": 8,
+   "fps": 12,
+   "loop": true,
+   "events": {
+    "0": "step",
+    "4": "step"
+   }
+  },
+  "attack1@e": {
+   "page": 0,
+   "start": 180,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack1@ne": {
+   "page": 0,
+   "start": 187,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack1@n": {
+   "page": 0,
+   "start": 194,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack1@se": {
+   "page": 0,
+   "start": 201,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack1@s": {
+   "page": 0,
+   "start": 208,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack2@e": {
+   "page": 0,
+   "start": 215,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack2@ne": {
+   "page": 0,
+   "start": 222,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack2@n": {
+   "page": 0,
+   "start": 229,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack2@se": {
+   "page": 0,
+   "start": 236,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack2@s": {
+   "page": 0,
+   "start": 243,
+   "count": 7,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "attack3@e": {
+   "page": 0,
+   "start": 250,
+   "count": 13,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "attack3@ne": {
+   "page": 0,
+   "start": 263,
+   "count": 13,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "attack3@n": {
+   "page": 0,
+   "start": 276,
+   "count": 13,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "attack3@se": {
+   "page": 0,
+   "start": 289,
+   "count": 13,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "attack3@s": {
+   "page": 0,
+   "start": 302,
+   "count": 13,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "heavy@e": {
+   "page": 0,
+   "start": 315,
+   "count": 17,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "heavy@ne": {
+   "page": 0,
+   "start": 332,
+   "count": 17,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "heavy@n": {
+   "page": 0,
+   "start": 349,
+   "count": 17,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "heavy@se": {
+   "page": 0,
+   "start": 366,
+   "count": 17,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "heavy@s": {
+   "page": 0,
+   "start": 383,
+   "count": 17,
+   "fps": 18,
+   "loop": false,
+   "events": {}
+  },
+  "cast@e": {
+   "page": 0,
+   "start": 400,
+   "count": 10,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "cast@ne": {
+   "page": 0,
+   "start": 410,
+   "count": 10,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "cast@n": {
+   "page": 0,
+   "start": 420,
+   "count": 10,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "cast@se": {
+   "page": 0,
+   "start": 430,
+   "count": 10,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "cast@s": {
+   "page": 0,
+   "start": 440,
+   "count": 10,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "dodge@e": {
+   "page": 0,
+   "start": 450,
+   "count": 9,
+   "fps": 24,
+   "loop": false,
+   "events": {}
+  },
+  "dodge@ne": {
+   "page": 0,
+   "start": 459,
+   "count": 9,
+   "fps": 24,
+   "loop": false,
+   "events": {}
+  },
+  "dodge@n": {
+   "page": 0,
+   "start": 468,
+   "count": 9,
+   "fps": 24,
+   "loop": false,
+   "events": {}
+  },
+  "dodge@se": {
+   "page": 0,
+   "start": 477,
+   "count": 9,
+   "fps": 24,
+   "loop": false,
+   "events": {}
+  },
+  "dodge@s": {
+   "page": 0,
+   "start": 486,
+   "count": 9,
+   "fps": 24,
+   "loop": false,
+   "events": {}
+  },
+  "roll@e": {
+   "page": 0,
+   "start": 495,
+   "count": 8,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "roll@ne": {
+   "page": 0,
+   "start": 503,
+   "count": 8,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "roll@n": {
+   "page": 0,
+   "start": 511,
+   "count": 8,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "roll@se": {
+   "page": 0,
+   "start": 519,
+   "count": 8,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "roll@s": {
+   "page": 0,
+   "start": 527,
+   "count": 8,
+   "fps": 16,
+   "loop": false,
+   "events": {}
+  },
+  "hurt@e": {
+   "page": 0,
+   "start": 535,
+   "count": 7,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "hurt@ne": {
+   "page": 0,
+   "start": 542,
+   "count": 7,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "hurt@n": {
+   "page": 1,
+   "start": 0,
+   "count": 7,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "hurt@se": {
+   "page": 1,
+   "start": 7,
+   "count": 7,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "hurt@s": {
+   "page": 1,
+   "start": 14,
+   "count": 7,
+   "fps": 20,
+   "loop": false,
+   "events": {}
+  },
+  "death@e": {
+   "page": 1,
+   "start": 21,
+   "count": 17,
+   "fps": 9,
+   "loop": false,
+   "events": {}
+  },
+  "death@ne": {
+   "page": 1,
+   "start": 38,
+   "count": 17,
+   "fps": 9,
+   "loop": false,
+   "events": {}
+  },
+  "death@n": {
+   "page": 1,
+   "start": 55,
+   "count": 17,
+   "fps": 9,
+   "loop": false,
+   "events": {}
+  },
+  "death@se": {
+   "page": 1,
+   "start": 72,
+   "count": 17,
+   "fps": 9,
+   "loop": false,
+   "events": {}
+  },
+  "death@s": {
+   "page": 1,
+   "start": 89,
+   "count": 17,
+   "fps": 9,
+   "loop": false,
+   "events": {}
+  },
+  "interact@e": {
+   "page": 1,
+   "start": 106,
+   "count": 7,
+   "fps": 12,
+   "loop": false,
+   "events": {}
+  },
+  "interact@ne": {
+   "page": 1,
+   "start": 113,
+   "count": 7,
+   "fps": 12,
+   "loop": false,
+   "events": {}
+  },
+  "interact@n": {
+   "page": 1,
+   "start": 120,
+   "count": 7,
+   "fps": 12,
+   "loop": false,
+   "events": {}
+  },
+  "interact@se": {
+   "page": 1,
+   "start": 127,
+   "count": 7,
+   "fps": 12,
+   "loop": false,
+   "events": {}
+  },
+  "interact@s": {
+   "page": 1,
+   "start": 134,
+   "count": 7,
+   "fps": 12,
+   "loop": false,
+   "events": {}
+  },
+  "victory@e": {
+   "page": 1,
+   "start": 141,
+   "count": 8,
+   "fps": 6,
+   "loop": true,
+   "events": {}
+  },
+  "victory@ne": {
+   "page": 1,
+   "start": 149,
+   "count": 8,
+   "fps": 6,
+   "loop": true,
+   "events": {}
+  },
+  "victory@n": {
+   "page": 1,
+   "start": 157,
+   "count": 8,
+   "fps": 6,
+   "loop": true,
+   "events": {}
+  },
+  "victory@se": {
+   "page": 1,
+   "start": 165,
+   "count": 8,
+   "fps": 6,
+   "loop": true,
+   "events": {}
+  },
+  "victory@s": {
+   "page": 1,
+   "start": 173,
+   "count": 8,
+   "fps": 6,
+   "loop": true,
+   "events": {}
+  }
+ }
+}

@@ -1,6 +1,6 @@
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
-import { varynPortraitSource } from '../assets/sprites/chibi/varynChibi';
+import { knightPortraitSource } from '../assets/character/knight/knightSheet';
 
 /**
  * Éléments graphiques de l'interface générés en pixel art : cadres 9-slice,
@@ -46,8 +46,8 @@ export function portrait(): string {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 40, 40);
   ctx.imageSmoothingEnabled = false;
-  const r = varynPortraitSource();
-  ctx.drawImage(r.canvas, r.x, r.y, r.w, r.h, 0, 0, 40, 40);
+  const r = knightPortraitSource();
+  ctx.drawImage(r.image, r.x, r.y, r.w, r.h, 0, 0, 40, 40);
   return c.toDataURL();
 }
 

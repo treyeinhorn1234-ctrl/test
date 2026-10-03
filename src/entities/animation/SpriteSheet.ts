@@ -2,12 +2,16 @@ import * as THREE from 'three';
 import { PixelCanvas } from '../../assets/pixel/PixelCanvas';
 
 /**
- * Planche de sprites : une ligne par animation, une colonne par frame.
- * Deux textures parallèles : couleur et émission (yeux, runes, lueurs).
+ * Planche de sprites : grille de frames réparties sur une ou plusieurs pages
+ * de texture. Chaque clip occupe `count` cellules consécutives à partir de
+ * `start` sur sa page (ordre de lecture : gauche → droite, haut → bas).
+ * Deux textures parallèles par page : couleur et émission (yeux, runes, lueurs).
  */
 export interface ClipInfo {
   name: string;
-  row: number;
+  /** Page de texture et première cellule du clip. */
+  page: number;
+  start: number;
   count: number;
   fps: number;
   loop: boolean;
@@ -15,24 +19,41 @@ export interface ClipInfo {
   events: Record<number, string>;
 }
 
+export interface SheetPage {
+  color: THREE.Texture;
+  emissive: THREE.Texture;
+  /** Nombre de lignes de cellules de la page. */
+  rows: number;
+  /** Image source (visualiseur, portrait). */
+  image: CanvasImageSource;
+}
+
 export interface SpriteSheet {
   frameW: number;
   frameH: number;
+  /** Cellules par ligne (identique sur toutes les pages). */
   cols: number;
-  rows: number;
+  pages: SheetPage[];
   /** Ligne de pixels correspondant au sol (pieds) dans une frame. */
   pivotY: number;
   /** Colonne de pixels du centre du personnage. */
   pivotX: number;
-  color: THREE.Texture;
-  emissive: THREE.Texture;
   clips: Map<string, ClipInfo>;
-  /** Image composite pour le débogage / visualiseur de sprites. */
-  debugCanvas: HTMLCanvasElement;
   /** Orientation native des frames (true = le personnage regarde à gauche). */
   facesLeft: boolean;
   /** Densité du sprite (pixels par unité monde). */
   pixelsPerUnit: number;
+  /**
+   * Directions disponibles : 4 (variantes `@down`, `@up`, `@side`) ou 8
+   * (variantes `@s`, `@se`, `@e`, `@ne`, `@n` ; l'ouest est le miroir de l'est).
+   */
+  directions: 4 | 8;
+}
+
+/** Position (colonne, ligne) d'une cellule de clip sur sa page. */
+export function cellOf(sheet: SpriteSheet, clip: ClipInfo, frame: number): { col: number; row: number } {
+  const k = clip.start + frame;
+  return { col: k % sheet.cols, row: Math.floor(k / sheet.cols) };
 }
 
 export interface ClipDef<P> {
@@ -66,7 +87,8 @@ export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
   spec.clips.forEach((clip, row) => {
     clips.set(clip.name, {
       name: clip.name,
-      row,
+      page: 0,
+      start: row * cols,
       count: clip.frames.length,
       fps: clip.fps,
       loop: clip.loop,
@@ -94,15 +116,13 @@ export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
     frameW: spec.frameW,
     frameH: spec.frameH,
     cols,
-    rows,
+    pages: [{ color: colorTex, emissive: emTex, rows, image: color.toCanvas() }],
     pivotX: spec.pivotX,
     pivotY: spec.pivotY,
-    color: colorTex,
-    emissive: emTex,
     clips,
-    debugCanvas: color.toCanvas(),
     facesLeft: spec.facesLeft ?? false,
     pixelsPerUnit: spec.pixelsPerUnit ?? 16,
+    directions: 4,
   };
 }
 

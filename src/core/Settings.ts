@@ -84,13 +84,13 @@ export const QUALITY_PRESETS: Record<QualityPreset, { shadows: number; particles
   high: { shadows: 2048, particles: 1, postLevel: 2, lights: 12 },
 };
 
-const STORAGE_KEY = 'ashen-crown.settings.v3';
+const STORAGE_KEY = 'ashen-crown.settings.v4';
 
 function defaults(): SettingsData {
   return {
     graphics: {
       quality: 'high',
-      pixelSize: 3,
+      pixelSize: 2,
       postLevel: 2,
       fog: 1,
       brightness: 1,

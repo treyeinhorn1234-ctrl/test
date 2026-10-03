@@ -5,6 +5,7 @@ import './ui/styles/main.css';
 import { Game } from './core/Game';
 import { installUiArt } from './ui/pixelArt';
 import { showSpriteViewer } from './dev/spriteViewer';
+import { loadKnightSheet } from './assets/character/knight/knightSheet';
 
 /**
  * ASHEN CROWN — point d'entrée.
@@ -18,6 +19,9 @@ function updateUiScale(): void {
   const u = Math.max(2, Math.min(4, Math.floor(window.innerHeight / 400)));
   document.documentElement.style.setProperty('--u', `${u}px`);
 }
+
+// Atlas du personnage (images) : chargé avant de créer le jeu.
+await loadKnightSheet();
 
 if (params.get('debug') === 'sprites') {
   showSpriteViewer(app);

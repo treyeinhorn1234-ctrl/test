@@ -48,7 +48,9 @@ export class AnimationPlayer {
     const v = `${name}@${this._variant}`;
     if (this.sheet.clips.has(v)) return v;
     if (this.sheet.clips.has(name)) return name;
-    return `${name}@down`;
+    // Repli : première variante disponible de ce clip.
+    for (const k of this.sheet.clips.keys()) if (k.startsWith(`${name}@`)) return k;
+    return name;
   }
 
   private get(name: string): ClipInfo {

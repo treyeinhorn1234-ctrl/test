@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PAL } from '../assets/palette';
-import { getVarynSheet } from '../assets/sprites/chibi/varynChibi';
+import { getKnightSheet } from '../assets/character/knight/knightSheet';
 import { SpriteActor } from '../entities/SpriteActor';
 import type { DamageResult, HitInfo } from '../combat/Damage';
 import { createStats } from '../combat/Stats';
@@ -63,10 +63,10 @@ export class Player extends Entity {
         physAtk: 14, magAtk: 16, armor: 0.1, magicResist: 0.1,
         critChance: 0.12, critMult: 1.8,
       }),
-      new SpriteActor(getVarynSheet(), 'idle', 0.55, 0.8, 1.6, 1.0),
+      new SpriteActor(getKnightSheet(), 'idle', 0.55, 0.8, 1.8, 0.6),
     );
     this.mass = 3;
-    this.centerHeight = 1.1;
+    this.centerHeight = 1.3;
     this.light = new THREE.PointLight(0xd8c8ff, 14, 11, 1.2);
     this.fsm = new StateMachine<Player, PState>(this, {
       idle: { enter: (p) => p.actor.anim.play('idle'), update: (p, dt) => p.updateLocomotion(dt) },

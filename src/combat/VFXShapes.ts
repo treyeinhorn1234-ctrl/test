@@ -34,7 +34,7 @@ export function createArcMaterial(): THREE.ShaderMaterial {
       varying vec2 vPos;
       void main() {
         // Pixelisation à 32 px par unité monde (densité du rendu).
-        vec2 q = (floor(vPos * uScale * 16.0) + 0.5) / (uScale * 16.0);
+        vec2 q = (floor(vPos * uScale * 32.0) + 0.5) / (uScale * 32.0);
         float r = length(q);
         if (r > 1.0 || r < uInner * 0.6) discard;
         float a = atan(q.y, q.x);

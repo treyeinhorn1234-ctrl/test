@@ -54,24 +54,14 @@ statues des rois, sarcophages, tombeau brisé de Varyn, autel abyssal, grande po
 scellée, bannières profanées, torches vacillantes (lumières dynamiques), brume
 rampante, poussière, braises, ombres pixelisées de la lune, objets examinables.
 
-**Personnages** : sprites **chibi façon RPG Maker** (grosse tête, ~48 px de haut
-dans des frames 64×64, même densité que le décor : 16 px par unité), dessinés
-procéduralement au pixel près. **4 directions** (face, dos, profil + miroir) et
-marche en 4 temps. Varyn : heaume à cornes et couronne brisée, yeux rouges, cape
-pourpre, épée Eclipse dans le dos — idle, walk, run, combo ×3, coup lourd tournoyant,
-griffe abyssale, esquive, roulade, blessure, mort, interaction, victoire. Squelette :
-casque rouillé, orbites bleues, épée et bouclier — s'effondre en tas d'os et se
-relève. Les deux sont **riggés comme un corps** : bassin, colonne qui se plie
-(inclinaison, torsion, respiration), cou et tête (hochement, regard), épaule →
-coude → poignet et hanche → genou → cheville résolus en cinématique inverse
-(pieds plantés pendant les flexions, coudes qui suivent l'épée, genoux
-raccourcis de face), cape en tissu ondulant ; chaque partie est contourée sur
-son propre calque pour rester lisible. Marche et course en cycle de 8 frames
-(contact, passage, bras en balancier). Les attaques sont animées par **poses clés** interpolées (8 à 14 frames) :
-anticipation, taille, accompagnement et retour en garde, traînées calculées sur
-l'arc réellement balayé par la lame, images rémanentes, éclats, lame chargée,
-bond avec impact au sol, rotation complète sur soi-même (coup lourd).
-Visualiseur : `/?debug=sprites` (`&who=varyn`, `&clip=heavy`, `&zoom=4`).
+**Personnages** : **Varyn** vient des packs « Knight » (chevalier rendu en pixel
+art, **8 directions**, frames 256×256), recoloré en armure noire à reflets
+violets et visière rouge incandescente, avec l'épée Eclipse ajoutée au poing sur
+les frames d'impact (`tools/build_knight.py`, voir `src/assets/README.md`).
+Animations : repos, marche, course, combo ×3 (poing, revers, bond-frappe), coup
+tournoyant, sort, glissade, roulade, impact, mort, interaction, victoire. Le
+**squelette** reste un chibi procédural riggé (cinématique inverse, 4 directions).
+Visualiseur : `/?debug=sprites` (`&who=varyn`, `&clip=heavy`, `&zoom=2`).
 
 **Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,
