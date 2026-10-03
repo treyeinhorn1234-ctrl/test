@@ -168,9 +168,12 @@ end
 log("Code installé.")
 
 --[[ 5. Réglages pour tester ]]
-Lighting.Technology = Enum.Technology.Future
 workspace:SetAttribute("SCP_RoomGallery", true)
-log("Éclairage Future et galerie de test activés.")
+log("Galerie de test activée (attribut SCP_RoomGallery de Workspace).")
+--[[ Roblox interdit à la barre de commande de changer Lighting.Technology : on le signale seulement ]]
+if Lighting.Technology ~= Enum.Technology.Future then
+	log("À faire à la main : clique sur Lighting dans l'Explorer, puis mets Technology sur Future dans les Propriétés.")
+end
 
 --[[ 6. Préparation des modèles déjà importés ]]
 local count = require(rootInstances["src/studio"]:WaitForChild("PrepareAssets"))()

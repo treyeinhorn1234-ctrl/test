@@ -51,8 +51,9 @@ une salle de 51,2 studs et une porte de 7,8 studs.
 
 Le script active les requêtes HTTP de la place, télécharge le code depuis GitHub
 et l'installe dans `ReplicatedStorage.Shared`, `ServerScriptService.Server` et
-`ServerStorage.SCPTools`. Il règle aussi l'éclairage sur `Future`, active la galerie
-de test et prépare les modèles déjà importés. Relance-le quand le code change sur
+`ServerStorage.SCPTools`. Il active aussi la galerie de test et prépare les modèles
+déjà importés. Roblox ne le laisse pas changer l'éclairage : clique sur *Lighting*
+dans l'Explorer et mets `Technology` sur `Future` dans les Propriétés. Relance-le quand le code change sur
 GitHub : il remplace seulement ce qu'il a installé lui-même.
 
 Si tu préfères [Rojo](https://rojo.space/) : `rojo serve` dans `scp-roblox/`
