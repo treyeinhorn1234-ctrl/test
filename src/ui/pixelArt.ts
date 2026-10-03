@@ -57,16 +57,21 @@ export function icon(name: IconName): string {
   const c = new PixelCanvas(16, 16);
   switch (name) {
     case 'light':
-      c.line(3, 13, 12, 4, PAL.steelEdge, 2);
-      c.line(4, 13, 13, 4, PAL.armor3);
-      c.line(2, 10, 6, 14, PAL.gold1, 1);
-      c.px(2, 14, PAL.wood1);
+      // Poing ganté lancé, traits de vitesse.
+      c.rect(7, 5, 6, 6, PAL.armor3);
+      c.rect(7, 5, 6, 1, PAL.armor4);
+      for (let k = 0; k < 3; k++) c.px(8 + k * 2, 7, PAL.armor1);
+      c.rect(4, 7, 3, 3, PAL.armor2);
+      for (let k = 0; k < 3; k++) c.line(1, 5 + k * 2, 3, 5 + k * 2, k === 1 ? PAL.void3 : PAL.void1);
+      c.px(14, 6, PAL.void3);
       break;
     case 'heavy':
-      c.line(3, 13, 12, 3, PAL.armor3, 3);
-      c.line(4, 12, 12, 4, PAL.steelEdge);
-      c.line(1, 10, 6, 15, PAL.gold1);
-      for (let a = 0; a < 6; a++) c.px(8 + Math.cos(a) * 6, 9 + Math.sin(a) * 6, PAL.void2);
+      // Poing entouré d'une onde (tour complet / impact lourd).
+      for (let a = 0; a < 16; a++) c.px(8 + Math.cos(a / 2.55) * 6.5, 8 + Math.sin(a / 2.55) * 6.5, a % 2 ? PAL.void1 : PAL.void2);
+      c.rect(5, 5, 6, 6, PAL.armor3);
+      c.rect(5, 5, 6, 1, PAL.armor4);
+      for (let k = 0; k < 3; k++) c.px(6 + k * 2, 7, PAL.armor1);
+      c.px(8, 10, PAL.void3);
       break;
     case 'dodge':
       for (let k = 0; k < 3; k++) c.line(2 + k, 4 + k * 3, 9 + k, 4 + k * 3, k === 1 ? PAL.void3 : PAL.void1);

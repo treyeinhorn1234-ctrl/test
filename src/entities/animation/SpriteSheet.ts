@@ -57,6 +57,8 @@ export interface FrameData {
   /** Fenêtres actives [première, dernière] (indices de frame, inclus). */
   windows: [number, number][];
   reach: number[];
+  /** Hauteur du poing / pied le plus avancé (unités, sprite non étiré). */
+  height?: number[];
 }
 
 /** Position (colonne, ligne) d'une cellule de clip sur sa page. */

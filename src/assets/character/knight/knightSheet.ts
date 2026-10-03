@@ -5,7 +5,8 @@ import meta from './knight.json';
 /**
  * Varyn : chevalier rendu en pixel art (packs « Knight », 8 directions),
  * recoloré et complété par `tools/build_knight.py` (armure noire à reflets
- * violets, visière rouge incandescente, épée Eclipse sur les frames d'impact).
+ * violets, visière rouge incandescente) ; il se bat à mains nues, comme dans le
+ * pack. Le script aligne aussi l'appui au sol de chaque direction.
  */
 const PAGES = import.meta.glob('./knight_*.png', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 

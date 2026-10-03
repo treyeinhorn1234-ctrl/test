@@ -321,7 +321,7 @@ export class Skeleton extends Enemy {
       return;
     }
     // Super-armure partielle pendant la télégraphie.
-    if (this.fsm.is('windup') && hit.tag === 'slash' && Math.random() < 0.3) return;
+    if (this.fsm.is('windup') && hit.tag === 'punch' && Math.random() < 0.3) return;
     ctx.fx.cancelTelegraph(this);
     this.stunTime = Math.max(0.18, hit.stun);
     this.releaseToken();

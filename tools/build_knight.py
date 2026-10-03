@@ -2,8 +2,8 @@
 """
 Convertit les packs « Knight » (exports PixelOver : frames 256×256, 8 directions)
 en atlas pour le jeu : Varyn recoloré (armure noire, reflets violets, visière
-rouge incandescente), épée Eclipse ajoutée au poing sur les frames d'impact, et
-données de combat (frames actives, allonge) mesurées sur le sprite.
+rouge incandescente), appui au sol aligné par direction, et données de combat (frames actives, allonge, hauteur
+du poing) mesurées sur le sprite.
 
 Usage : python3 tools/build_knight.py <dossier des packs extraits>
   (le dossier contient KnightBasic/, KnightAdvCombat/, KnightExMovement/)
@@ -30,8 +30,6 @@ SRC = sys.argv[1] if len(sys.argv) > 1 else 'knight'
 OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'assets', 'character', 'knight')
 
 DIRS = {'e': 6, 'ne': 5, 'n': 4, 'se': 7, 's': 8}
-# Vecteur « avant » à l'écran de chaque direction (pour placer l'épée).
-FWD = {'e': (1, 0), 'ne': (0.8, -0.6), 'n': (0, -1), 'se': (0.8, 0.6), 's': (0, 1)}
 
 # Clip du jeu ← (pack, animation, frames source, fps, boucle, événements, données de combat).
 # Données de combat (None pour les clips sans coup) :
@@ -39,26 +37,25 @@ FWD = {'e': (1, 0), 'ne': (0.8, -0.6), 'n': (0, -1), 'se': (0.8, 0.6), 's': (0, 
 #           'any' (n'importe quel membre vers l'avant : coups de pied, uppercut),
 #           'radial' (de part et d'autre : attaque tournoyante),
 #           'land' (frappe au sol : active à la réception d'un saut) ;
-#   sword : l'épée Eclipse apparaît au poing sur les frames actives (± 1 frame).
 # Les frames actives (hitbox) et l'allonge de chaque frame sont mesurées sur le sprite.
-FD = lambda mode, sword: {'mode': mode, 'sword': sword}  # noqa: E731
+FD = lambda mode: {'mode': mode}  # noqa: E731
 CLIPS = [
     ('idle', 'KnightBasic', 'Idle', list(range(0, 17, 2)), 4, True, {}, None),
     ('walk', 'KnightBasic', 'Walk', list(range(11)), 10, True, {0: 'step', 5: 'step'}, None),
     ('run', 'KnightBasic', 'Run', list(range(8)), 12, True, {0: 'step', 4: 'step'}, None),
     # Combo du pack : 5 frappes (frames 3, 7, 12, 17, 21) → coup 1, coup 2, final en rafale (3 impacts).
-    ('attack1', 'KnightAdvCombat', 'ComboAttack', [0, 1, 2, 3, 4, 5, 6], 14, False, {}, FD('forward', True)),
-    ('attack2', 'KnightAdvCombat', 'ComboAttack', [6, 7, 8, 9, 10, 33, 34], 14, False, {}, FD('forward', True)),
-    ('attack3', 'KnightAdvCombat', 'ComboAttack', [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 32, 33, 34], 16, False, {}, FD('any', True)),
+    ('attack1', 'KnightAdvCombat', 'ComboAttack', [0, 1, 2, 3, 4, 5, 6], 14, False, {}, FD('forward')),
+    ('attack2', 'KnightAdvCombat', 'ComboAttack', [6, 7, 8, 9, 10, 33, 34], 14, False, {}, FD('forward')),
+    ('attack3', 'KnightAdvCombat', 'ComboAttack', [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 32, 33, 34], 16, False, {}, FD('any')),
     # Attaque en course : bond, impact à la réception.
-    ('leap', 'KnightAdvCombat', 'JumpAttack', [0, 2, 4, 6, 8, 10, 11, 12, 13, 14, 16, 18, 20, 22], 16, False, {}, FD('land', True)),
+    ('leap', 'KnightAdvCombat', 'JumpAttack', [0, 2, 4, 6, 8, 10, 11, 12, 13, 14, 16, 18, 20, 22], 16, False, {}, FD('land')),
     # Attaque lourde : tour complet, deux balayages.
-    ('heavy', 'KnightAdvCombat', 'SpinAttack', list(range(17)), 16, False, {}, FD('radial', True)),
+    ('heavy', 'KnightAdvCombat', 'SpinAttack', list(range(17)), 16, False, {}, FD('radial')),
     # Coup de pied brise-garde (bifurcation du combo).
-    ('kick', 'KnightAdvCombat', 'Kick', [0, 2, 3, 4, 5, 6, 7, 8, 9, 11], 16, False, {}, FD('any', False)),
+    ('kick', 'KnightAdvCombat', 'Kick', [0, 2, 3, 4, 5, 6, 7, 8, 9, 11], 16, False, {}, FD('any')),
     # Uppercut en sortie de roulade.
-    ('uppercut', 'KnightAdvCombat', 'CrouchAttack', [0, 2, 3, 5, 6, 7, 8, 9, 11, 12], 16, False, {}, FD('any', False)),
-    ('cast', 'KnightAdvCombat', 'Cast', list(range(10)), 16, False, {}, FD('forward', False)),
+    ('uppercut', 'KnightAdvCombat', 'CrouchAttack', [0, 2, 3, 5, 6, 7, 8, 9, 11, 12], 16, False, {}, FD('any')),
+    ('cast', 'KnightAdvCombat', 'Cast', list(range(10)), 16, False, {}, FD('forward')),
     # Garde (tenue sur la dernière frame) et garde frappée.
     ('guard', 'KnightAdvCombat', 'Block', [0, 1, 2, 3, 4, 5], 18, False, {}, None),
     ('guardHit', 'KnightAdvCombat', 'Block2', [0, 1, 2, 3, 4, 5, 6, 7], 18, False, {}, None),
@@ -70,8 +67,8 @@ CLIPS = [
     ('victory', 'KnightExMovement', 'PowerUp', [0, 2, 4, 6, 8, 10, 12, 14], 6, True, {}, None),
 ]
 
-# Longueur de la lame (px) et densité du sprite (px par unité monde).
-SWORD_LEN = 30
+# Marge du poing (gantelet, recul de l'impact) en px et densité du sprite (px par unité monde).
+FIST_MARGIN = 10
 PPU = 32
 
 FRAME = 256
@@ -87,26 +84,32 @@ def load_frames(pack, anim, d):
 
 # ------------------------------------------------------------- données de combat
 
-def reach_px(img, mode):
-    """Allonge (px) d'une frame vue de profil (direction est), depuis le pivot (pieds)."""
+def reach_px(img, mode, with_height=False):
+    """Allonge (px) d'une frame vue de profil (direction est), depuis le pivot (pieds).
+    Avec `with_height`, renvoie aussi la hauteur (px au-dessus des pieds) du point le plus avancé."""
     a = np.asarray(img)[..., 3] > 0
     ys, xs = np.nonzero(a)
     if not len(xs):
-        return 0
+        return (0, 0) if with_height else 0
     px, py = PIVOT_SRC
     if mode == 'forward':
         m = ys < py - 22  # au-dessus des genoux : bras et buste
-        return int((xs[m] - px).max()) if m.any() else 0
-    if mode in ('any', 'land'):
+    elif mode in ('any', 'land'):
         m = ys < py - 6  # tout sauf le pied d'appui
-        return int((xs[m] - px).max()) if m.any() else 0
-    return int(np.abs(xs - px).max())
+    else:
+        m = np.ones_like(xs, dtype=bool)
+    if not m.any():
+        return (0, 0) if with_height else 0
+    d = np.abs(xs[m] - px) if mode == 'radial' else xs[m] - px
+    k = int(np.argmax(d))
+    return (int(d[k]), int(py - ys[m][k])) if with_height else int(d[k])
 
 
 def frame_data(pack, anim, idx, fd, baseline):
     """Frames actives et allonge mesurées sur le profil est (dir6) du sprite source."""
     src = load_frames(pack, anim, DIRS['e'])
-    reach = [reach_px(src[i], fd['mode']) for i in idx]
+    rh = [reach_px(src[i], fd['mode'], True) for i in idx]
+    reach = [r for r, _ in rh]
     if fd['mode'] == 'land':
         # Impact à la réception : premières frames où les pieds retouchent le sol après le saut.
         bottoms = [src[i].getbbox()[3] for i in idx]
@@ -130,12 +133,10 @@ def frame_data(pack, anim, idx, fd, baseline):
             windows.append([i, i])
         elif on:
             windows[-1][1] = i
-    sword = set()
-    if fd['sword']:
-        for w0, w1 in windows:
-            sword.update(range(max(0, w0 - 1), min(len(idx), w1 + 2)))
-    units = [round((r + (SWORD_LEN if k in sword else 0)) / PPU, 2) for k, r in enumerate(reach)]
-    return {'windows': windows, 'reach': units}, sword
+    units = [round((r + FIST_MARGIN) / PPU, 2) for r in reach]
+    # Hauteur du poing / pied (unités, avant correction de l'étirement vertical) : place les impacts.
+    heights = [round(h / PPU, 2) for _, h in rh]
+    return {'windows': windows, 'reach': units, 'height': heights}
 
 
 # ------------------------------------------------------------- recoloration
@@ -191,107 +192,19 @@ def classify(c):
     return 'armor'
 
 
-# ------------------------------------------------------------- épée Eclipse
-
-STEEL = {'edge': hexrgb(0xd0c8dc), 'mid': hexrgb(0x8a8296), 'dark': hexrgb(0x3a3542), 'guard': hexrgb(0x6c607a), 'rune': hexrgb(0xb27cff)}
-
-
-def find_fist(img, fwd):
-    """Poing tendu : pixel opaque le plus avancé dans la direction regardée (au-dessus des genoux)."""
-    px = img.load()
-    pts = [(x, y) for y in range(img.height) for x in range(img.width) if px[x, y][3] > 0]
-    cx = sum(p[0] for p in pts) / len(pts)
-    cy = sum(p[1] for p in pts) / len(pts)
-    shoulder = (cx, cy - 12)
-    if abs(fwd[0]) < 0.1:
-        # De face / de dos, le poing tendu vers (ou loin de) la caméra se confond avec
-        # le buste : on prend la main la plus écartée latéralement, à hauteur de bras.
-        band = [p for p in pts if cy - 14 < p[1] < cy + 10]
-        best = max(band, key=lambda p: abs(p[0] - cx))
-        return best, shoulder
-    upper = [p for p in pts if p[1] < cy + 14]
-    best = max(upper, key=lambda p: (p[0] - cx) * fwd[0] + (p[1] - cy) * fwd[1])
-    return best, shoulder
-
-
-def draw_line(px, w, h, a, b, col, size=1):
-    steps = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
-    for i in range(steps + 1):
-        t = i / max(1, steps)
-        x = a[0] + (b[0] - a[0]) * t
-        y = a[1] + (b[1] - a[1]) * t
-        for dx in range(size):
-            for dy in range(size):
-                xx, yy = round(x - (size - 1) / 2 + dx), round(y - (size - 1) / 2 + dy)
-                if 0 <= xx < w and 0 <= yy < h:
-                    px[xx, yy] = col + (255,)
-
-
-def add_sword(img, emi, fwd, strength):
-    """Lame dans le prolongement du bras, garde perpendiculaire au poing, runes émissives."""
-    fist, sh = find_fist(img, fwd)
-    dx, dy = fist[0] - sh[0], fist[1] - sh[1]
-    n = math.hypot(dx, dy) or 1
-    ux, uy = dx / n, dy / n
-    # Mélange avec la direction regardée pour une lame franche.
-    ux, uy = ux * 0.6 + fwd[0] * 0.4, uy * 0.6 + fwd[1] * 0.4
-    n = math.hypot(ux, uy) or 1
-    ux, uy = ux / n, uy / n
-    L = 30
-    base = (fist[0] + ux * 2, fist[1] + uy * 2)
-    tip = (fist[0] + ux * L, fist[1] + uy * L)
-    px = img.load()
-    ep = emi.load()
-    w, h = img.size
-    lay = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    lp = lay.load()
-    draw_line(lp, w, h, base, tip, STEEL['mid'], 3)
-    nx, ny = -uy, ux
-    draw_line(lp, w, h, (base[0] + nx, base[1] + ny), tip, STEEL['edge'], 1)
-    draw_line(lp, w, h, (base[0] - nx, base[1] - ny), (tip[0] - ux * 2 - nx, tip[1] - uy * 2 - ny), STEEL['dark'], 1)
-    g = (fist[0] + ux, fist[1] + uy)
-    draw_line(lp, w, h, (g[0] - nx * 4, g[1] - ny * 4), (g[0] + nx * 4, g[1] + ny * 4), STEEL['guard'], 2)
-    # Contour de la lame.
-    outline = []
-    for y in range(h):
-        for x in range(w):
-            if lp[x, y][3]:
-                continue
-            for ox, oy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                xx, yy = x + ox, y + oy
-                if 0 <= xx < w and 0 <= yy < h and lp[xx, yy][3]:
-                    outline.append((x, y))
-                    break
-    for x, y in outline:
-        lp[x, y] = INK + (255,)
-    img.alpha_composite(lay)
-    # Runes et fil incandescents (plus vifs à l'impact).
-    for k in range(5, L - 3, 4):
-        x, y = round(fist[0] + ux * k), round(fist[1] + uy * k)
-        if 0 <= x < w and 0 <= y < h:
-            px[x, y] = STEEL['rune'] + (255,)
-            ep[x, y] = STEEL['rune'] + (255,)
-    if strength > 0.5:
-        for k in range(4, L):
-            x, y = round(fist[0] + ux * k + nx), round(fist[1] + uy * k + ny)
-            if 0 <= x < w and 0 <= y < h:
-                ep[x, y] = (150, 100, 255, 255)
-
-
 # ------------------------------------------------------------- assemblage
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     # 1. Charge toutes les frames retenues.
-    cells = []  # (clip, dir, frame index, image, épée ?)
+    cells = []  # (clip, dir, frame index, image)
     colors = set()
     idle_e = load_frames('KnightBasic', 'Idle', DIRS['e'])[0]
     baseline = {m: reach_px(idle_e, m) for m in ('forward', 'any', 'radial', 'land')}
     moves = {}
     for name, pack, anim, idx, fps, loop, ev, fd in CLIPS:
-        sword = set()
         if fd:
-            moves[name], sword = frame_data(pack, anim, idx, fd, baseline)
+            moves[name] = frame_data(pack, anim, idx, fd, baseline)
             print(f'{name:9} fenêtres {moves[name]["windows"]} allonge {moves[name]["reach"]}')
         for dname, d in DIRS.items():
             src = load_frames(pack, anim, d)
@@ -299,8 +212,24 @@ def main():
                 f = src[i]
                 a = np.asarray(f)
                 colors.update(map(tuple, np.unique(a[a[..., 3] > 0][:, :3], axis=0).tolist()))
-                cells.append((name, dname, i, f, k in sword))
+                cells.append((name, dname, i, f))
     pal = build_palette(colors)
+    # Appui au sol par direction : dans certaines vues, l'origine du modèle 3D n'est pas sous
+    # les pieds (vue est : 6 px trop haut). On aligne le bas des pieds au repos sur le pivot.
+    ground = {}
+    for dname, d in DIRS.items():
+        bottoms = [f.getbbox()[3] - 1 for f in load_frames('KnightBasic', 'Idle', d)]
+        ground[dname] = PIVOT_SRC[1] - max(bottoms)
+    print('correction d\'appui (px)', ground)
+    # Puis par animation : si le point le plus bas d'un clip reste au-dessus du sol (marche,
+    # course vues de dos…), on le descend jusqu'au contact. On ne remonte jamais un clip.
+    lowest = {}
+    for (name, dname, _, f) in cells:
+        key = (name, dname)
+        lowest[key] = max(lowest.get(key, 0), f.getbbox()[3] - 1 + ground[dname])
+    shift = {key: ground[key[1]] + max(0, PIVOT_SRC[1] - low) for key, low in lowest.items()}
+    floating = {f'{k[0]}@{k[1]}': v - ground[k[1]] for k, v in shift.items() if v != ground[k[1]]}
+    print('clips redescendus (px)', floating)
     lut = {(c[0] << 16) | (c[1] << 8) | c[2]: v for c, v in pal.items()}
 
     # 2. Boîte commune, centrée sur le pivot (le miroir garde les pieds en place).
@@ -309,11 +238,11 @@ def main():
     for c in cells:
         bb = c[3].getbbox()
         if bb:
-            x0, y0, x1, y1 = min(x0, bb[0]), min(y0, bb[1]), max(x1, bb[2]), max(y1, bb[3])
-    # Marge pour l'épée tendue au-delà de la silhouette.
-    half = min(max(PIVOT_SRC[0] - x0, x1 - PIVOT_SRC[0]) + 14, 128)
-    top = max(0, min(y0, PIVOT_SRC[1] - 1) - 6)
-    bottom = min(FRAME, y1 + 4)
+            dy = shift[(c[0], c[1])]  # boîte après l'alignement au sol
+            x0, y0, x1, y1 = min(x0, bb[0]), min(y0, bb[1] + dy), max(x1, bb[2]), max(y1, bb[3] + dy)
+    half = min(max(PIVOT_SRC[0] - x0, x1 - PIVOT_SRC[0]) + 2, 128)
+    top = max(0, min(y0, PIVOT_SRC[1] - 1) - 2)
+    bottom = min(FRAME, y1 + 2)
     fw = half * 2
     fh = bottom - top
     print('union', (x0, y0, x1, y1), 'frame', fw, fh, 'cells', len(cells))
@@ -345,7 +274,7 @@ def main():
         spec = next(c for c in CLIPS if c[0] == name)
         clips[key] = {'page': len(pages) - 1, 'start': slot, 'count': len(group), 'fps': spec[4], 'loop': spec[5],
                       'events': {str(a): b for a, b in spec[6].items()}}
-        for (_, dname, i, f, strike) in group:
+        for (_, dname, i, f) in group:
         # Recoloration par table de correspondance.
             a = np.asarray(f, dtype=np.uint8)
             key_px = (a[..., 0].astype(np.int32) << 16) | (a[..., 1].astype(np.int32) << 8) | a[..., 2]
@@ -362,10 +291,9 @@ def main():
                     eo[m, 3] = 255
             img = Image.fromarray(out, 'RGBA').copy()
             emi = Image.fromarray(eo, 'RGBA').copy()
-            if strike:
-                add_sword(img, emi, FWD[dname], 1.0)
-            img = img.crop(crop)
-            emi = emi.crop(crop)
+            dy = shift[(name, dname)]
+            img = img.crop((crop[0], crop[1] - dy, crop[2], crop[3] - dy))
+            emi = emi.crop((crop[0], crop[1] - dy, crop[2], crop[3] - dy))
             cx, cy = (slot % cols) * fw, (slot // cols) * fh
             pages[-1][0].paste(img, (cx, cy))
             pages[-1][1].paste(emi, (cx, cy))

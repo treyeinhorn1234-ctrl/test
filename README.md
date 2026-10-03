@@ -56,19 +56,25 @@ rampante, poussière, braises, ombres pixelisées de la lune, objets examinables
 
 **Personnages** : **Varyn** vient des packs « Knight » (chevalier rendu en pixel
 art, **8 directions**, frames 256×256), recoloré en armure noire à reflets
-violets et visière rouge incandescente, avec l'épée Eclipse ajoutée au poing sur
-les frames d'impact (`tools/build_knight.py`, voir `src/assets/README.md`).
-Animations : repos, marche, course, combo ×3 (poing, revers, bond-frappe), coup
-tournoyant, sort, glissade, roulade, impact, mort, interaction, victoire. Le
+violets et visière rouge incandescente ; il se bat **à mains nues**, comme dans le
+pack (`tools/build_knight.py`, voir `src/assets/README.md`). L'appui au sol est
+aligné par direction et par animation (les pieds touchent toujours le sol).
+Animations : repos, marche, course, combo, bond, tour complet, coup de pied,
+uppercut, sort, garde, glissade, roulade, impact, mort, interaction, victoire. Le
 **squelette** reste un chibi procédural riggé (cinématique inverse, 4 directions).
 Visualiseur : `/?debug=sprites` (`&who=varyn`, `&clip=heavy`, `&zoom=2`).
 
 **Combat piloté par le sprite** : les fenêtres actives et la portée de chaque coup
 sont **mesurées sur les frames de l'animation** (`tools/build_knight.py` →
 `knight.json`, champ `moves`) : une hitbox naît à l'entrée de chaque fenêtre
-active, avec l'allonge de la lame sur ces frames ; plusieurs fenêtres = plusieurs
-impacts ; l'enchaînement s'ouvre après la dernière frame active ; l'épée Eclipse
-n'apparaît qu'autour des frames actives.
+active, avec l'allonge du poing ou du pied sur ces frames ; plusieurs fenêtres =
+plusieurs impacts ; l'enchaînement s'ouvre après la dernière frame active ; les
+effets naissent au point de contact (portée et hauteur mesurées).
+
+**Impact des coups** : gel d'impact proportionnel à la puissance, cible écrasée
+qui rebondit, éclair et traits de vitesse au contact, anneau de choc et poussière
+sous la cible, son de coup dédié, secousse et zoom de caméra, flash d'écran sur
+les coups lourds, ralenti sur les finishers et les mises à mort.
 
 | Commande | Coup |
 | --- | --- |

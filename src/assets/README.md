@@ -36,14 +36,16 @@ archives ne contenaient pas de licence : **vérifier les droits d'utilisation**
 avant toute diffusion du jeu. Les sources brutes ne sont pas versionnées.
 
 `tools/build_knight.py <dossier extrait>` :
-- retient 14 animations et choisit/réordonne les frames pour que l'impact tombe
-  au moment où le coup touche en jeu (combo : poing 1, revers, bond-frappe ;
-  attaque tournoyante, sort, glissade, roulade, impact, mort, toquer, victoire) ;
+- retient 19 animations (combo, bond, tour complet, coup de pied, uppercut, sort,
+  garde, glissade, roulade, impact, mort, toquer, victoire…) ;
+- mesure sur chaque frame l'allonge et la hauteur du poing / pied et en déduit
+  les fenêtres actives (`moves` dans `knight.json`) ;
 - garde 5 directions (e, ne, n, se, s) ; o, no et so sont les miroirs ;
 - recolore la palette (30 couleurs) : plaques en noir violacé, sous-tenue
   pourpre, éclats violets, visière orange → yeux rouges émissifs ;
-- ajoute l'épée Eclipse au poing tendu sur les frames d'impact (lame, garde,
-  runes émissives) ;
+- aligne l'appui au sol : par direction (l'origine du modèle n'est pas sous les
+  pieds dans toutes les vues), puis par animation (un clip qui reste au-dessus
+  du sol est redescendu, jamais remonté) ;
 - recadre autour du pivot (pieds) et range les frames en pages ≤ 4096 px.
 
 En jeu, `AtlasSheet.loadAtlasSheet` charge les pages et `SpriteActor` choisit

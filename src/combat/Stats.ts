@@ -6,7 +6,7 @@ export interface CombatStats {
   mana: number;
   maxStamina: number;
   stamina: number;
-  /** Puissance physique (attaques à l'épée). */
+  /** Puissance physique (coups de poing et de pied). */
   physAtk: number;
   /** Puissance magique (sorts abyssaux). */
   magAtk: number;

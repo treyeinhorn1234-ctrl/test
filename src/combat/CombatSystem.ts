@@ -109,10 +109,31 @@ export class CombatSystem {
       target, attacker, amount: result.amount, crit: result.crit, blocked, killed, position: pos, tag: hit.tag,
     });
     const dir = new THREE.Vector3().subVectors(target.position, attacker.position).setY(0).normalize();
-    ctx.fx.impact(pos, dir, attacker.faction === 'player' ? 'player' : 'enemy', result.crit, blocked);
-    ctx.hitstop(blocked ? hit.hitstop * 0.6 : result.crit ? hit.hitstop * 1.5 : hit.hitstop);
-    ctx.cameraRig.addTrauma(hit.shake * (result.crit ? 1.4 : 1) * (attacker.faction === 'enemy' ? 1.2 : 1));
-    if (result.crit || hit.power >= 1.8) ctx.cameraRig.punch(0.03 + hit.shake * 0.04);
+    const byPlayer = attacker.faction === 'player';
+    ctx.fx.impact(pos, dir, byPlayer ? 'player' : 'enemy', result.crit, blocked);
+    if (blocked) {
+      ctx.hitstop(hit.hitstop * 0.6);
+      ctx.cameraRig.addTrauma(hit.shake * 0.8);
+      return;
+    }
+    // Poids de l'impact : plus le coup est puissant, plus tout s'appuie dessus.
+    const weight = hit.power * (result.crit ? 1.3 : 1);
+    target.squash(Math.min(1, 0.4 + weight * 0.3));
+    if (byPlayer) {
+      ctx.fx.punchImpact(pos, dir, weight);
+      ctx.events.emit('sfx', { name: 'punch', position: pos, volume: Math.min(1, 0.55 + weight * 0.2) });
+      ctx.hitstop(hit.hitstop * 1.4 + 0.015 + (result.crit ? hit.hitstop * 0.6 : 0));
+      ctx.cameraRig.addTrauma(hit.shake * 1.35 * (result.crit ? 1.3 : 1));
+      ctx.cameraRig.punch(0.02 + weight * 0.022);
+      if (weight >= 1.7) ctx.screenFlash(0xe8dcff, Math.min(0.3, 0.1 + weight * 0.05), 8);
+      // Ralenti sur les coups de grâce et les finishers.
+      if (killed) ctx.slowmo(0.25, 0.3);
+      else if (weight >= 2) ctx.slowmo(0.4, 0.14);
+    } else {
+      ctx.hitstop(result.crit ? hit.hitstop * 1.5 : hit.hitstop);
+      ctx.cameraRig.addTrauma(hit.shake * (result.crit ? 1.4 : 1) * 1.2);
+      if (result.crit || hit.power >= 1.8) ctx.cameraRig.punch(0.03 + hit.shake * 0.04);
+    }
   }
 
   /** Les entités vivantes se repoussent (sauf les fantômes en esquive). */

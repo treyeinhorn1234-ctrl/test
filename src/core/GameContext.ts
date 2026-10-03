@@ -25,6 +25,10 @@ export interface GameContext {
   time: number;
   /** Gel de l'image (impact). */
   hitstop(duration: number): void;
+  /** Ralenti : le temps s'écoule à `scale` pendant `duration` secondes réelles. */
+  slowmo(scale: number, duration: number): void;
+  /** Flash plein écran. */
+  screenFlash(color: number, strength: number, decay?: number): void;
   /** Nombre maximal d'ennemis autorisés à attaquer simultanément. */
   attackTokens: { used: number; max: number };
 }

@@ -31,6 +31,9 @@ export abstract class Entity {
   /** Poids pour la séparation entre entités (plus lourd = moins poussé). */
   mass = 1;
   protected flashTime = 0;
+  /** Écrasement à l'impact (0..1), qui se résorbe en rebondissant. */
+  private squashAmt = 0;
+  private squashT = 1;
   /** Hauteur du centre de la cible (pour les effets). */
   centerHeight = 1.2;
 
@@ -100,8 +103,29 @@ export abstract class Entity {
   }
 
   /** Synchronise le sprite : position, miroir selon l'écran, flash. */
+  /**
+   * Écrase le sprite sous un coup (plus large, plus bas), puis le laisse
+   * rebondir. Appliqué tout de suite : visible pendant le gel d'impact.
+   */
+  squash(amount: number): void {
+    this.squashAmt = Math.min(1, Math.max(this.squashAmt * (1 - this.squashT), amount));
+    this.squashT = 0;
+    this.applySquash();
+  }
+
+  private applySquash(): void {
+    // Oscillation amortie : écrasé → étiré → repos.
+    const t = this.squashT;
+    const k = this.squashAmt * Math.cos(t * 26) * Math.exp(-t * 9);
+    this.actor.mesh.scale.set(1 + 0.2 * k, 1 - 0.16 * k, 1);
+  }
+
   syncVisual(dt: number, ctx: GameContext): void {
     const actor = this.actor;
+    if (this.squashT < 1) {
+      this.squashT = Math.min(1, this.squashT + dt);
+      this.applySquash();
+    }
     actor.root.position.copy(this.position);
     const fx = Math.cos(this.facing);
     const fz = Math.sin(this.facing);

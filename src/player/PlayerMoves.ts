@@ -1,9 +1,10 @@
 import type { HitInfo } from '../combat/Damage';
 
 /**
- * Coups de Varyn. Le **sprite** fait foi pour le temps et la portée :
- * `tools/build_knight.py` mesure sur chaque frame l'allonge du membre ou de la
- * lame et en déduit les fenêtres actives (`knight.json` → `moves`). Ici ne
+ * Coups de Varyn, à mains nues comme dans le pack. Le **sprite** fait foi pour
+ * le temps et la portée : `tools/build_knight.py` mesure sur chaque frame
+ * l'allonge du poing ou du pied (et sa hauteur, pour placer les impacts) et en
+ * déduit les fenêtres actives (`knight.json` → `moves`). Ici ne
  * figurent que les données de conception : puissance, recul, ouverture de
  * l'arc, élan, coûts et vitesse de lecture.
  *
@@ -35,28 +36,28 @@ export interface MoveDef {
   /** Onde de choc au sol à l'impact (rayon). */
   shockwave?: number;
   /** Rayon de l'effet visuel de taille (sinon : portée mesurée). */
-  vfx: 'slash' | 'flurry' | 'slam' | 'spin' | 'kick' | 'uppercut' | 'claw';
+  vfx: 'jab' | 'flurry' | 'slam' | 'spin' | 'kick' | 'uppercut' | 'claw';
 }
 
 const DEG = Math.PI / 180;
 
-const slash = (power: number, extra: Partial<HitInfo> = {}): HitInfo => ({
-  power, type: 'physical', knockback: 4, stun: 0.3, hitstop: 0.05, shake: 0.18, tag: 'slash', ...extra,
+const punch = (power: number, extra: Partial<HitInfo> = {}): HitInfo => ({
+  power, type: 'physical', knockback: 4, stun: 0.3, hitstop: 0.05, shake: 0.18, tag: 'punch', ...extra,
 });
 
 export const MOVES: Record<MoveId, MoveDef> = {
   attack1: {
-    id: 'attack1', anim: 'attack1', speed: 1.5, arc: 70 * DEG, lunge: 4, stamina: 7, sfx: 'swing', cancelDelay: 1, vfx: 'slash',
-    hits: [slash(1)],
+    id: 'attack1', anim: 'attack1', speed: 1.5, arc: 70 * DEG, lunge: 4, stamina: 7, sfx: 'swing', cancelDelay: 1, vfx: 'jab',
+    hits: [punch(1)],
   },
   attack2: {
-    id: 'attack2', anim: 'attack2', speed: 1.5, arc: 80 * DEG, lunge: 4, stamina: 7, sfx: 'swing', cancelDelay: 1, vfx: 'slash',
-    hits: [slash(1.15, { knockback: 4.5, shake: 0.2 })],
+    id: 'attack2', anim: 'attack2', speed: 1.5, arc: 80 * DEG, lunge: 4, stamina: 7, sfx: 'swing', cancelDelay: 1, vfx: 'jab',
+    hits: [punch(1.15, { knockback: 4.5, shake: 0.2 })],
   },
   // Final en rafale : trois impacts mesurés sur le sprite, le dernier projette.
   attack3: {
     id: 'attack3', anim: 'attack3', speed: 1.45, arc: 75 * DEG, lunge: 3.5, stamina: 11, sfx: 'swing', cancelDelay: 2, vfx: 'flurry',
-    hits: [slash(0.7, { knockback: 1.5, stun: 0.35 }), slash(0.7, { knockback: 1.5, stun: 0.35 }), slash(1.5, { knockback: 9, stun: 0.6, hitstop: 0.09, shake: 0.4, tag: 'slam' })],
+    hits: [punch(0.7, { knockback: 1.5, stun: 0.35 }), punch(0.7, { knockback: 1.5, stun: 0.35 }), punch(1.5, { knockback: 9, stun: 0.6, hitstop: 0.09, shake: 0.4, tag: 'slam' })],
   },
   // En courant : bond, impact à la réception (onde de choc).
   leap: {

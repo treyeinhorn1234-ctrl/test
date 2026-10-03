@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PAL } from '../assets/palette';
 import { getKnightSheet } from '../assets/character/knight/knightSheet';
-import { SpriteActor } from '../entities/SpriteActor';
+import { SpriteActor, VERTICAL_STRETCH } from '../entities/SpriteActor';
 import type { DamageResult, HitInfo } from '../combat/Damage';
 import { createStats } from '../combat/Stats';
 import type { GameContext } from '../core/GameContext';
@@ -39,7 +39,7 @@ const RIPOSTE_WINDOW = 0.45;
  *
  * Combat piloté par le sprite : pendant une attaque, c'est la frame affichée
  * qui décide (hitbox à l'entrée de chaque fenêtre active mesurée sur
- * l'animation, portée = allonge de la lame sur ces frames, enchaînement
+ * l'animation, portée = allonge du poing ou du pied sur ces frames, enchaînement
  * ouvert après la dernière frame active).
  */
 export class Player extends Entity {
@@ -480,7 +480,7 @@ export class Player extends Entity {
         ttl: (w[1] - w[0] + 1) * this.frameTime() + 0.02,
       });
       this.ctx.events.emit('sfx', { name: def.sfx });
-      this.moveVfx(def, k, range);
+      this.moveVfx(def, k, range, w);
       if (def.shockwave && k === windows.length - 1) {
         const p = this.position.clone().addScaledVector(fwd, Math.min(range, 1.6));
         this.ctx.fx.shockwave(p, PAL.void2, def.shockwave);
@@ -500,46 +500,63 @@ export class Player extends Entity {
     }
   }
 
-  /** Effets de taille, à la portée mesurée sur le sprite. */
-  private moveVfx(def: MoveDef, k: number, range: number): void {
+  /** Point de contact du coup (poing / pied) d'après le sprite : portée et hauteur mesurées. */
+  private strikePoint(w: [number, number], range: number): THREE.Vector3 {
+    const h = this.moveFd?.height ?? [];
+    let y = 1.2;
+    for (let i = w[0]; i <= w[1]; i++) if (h[i] !== undefined) y = h[i] * VERTICAL_STRETCH;
+    return this.position.clone().addScaledVector(this.forward, Math.max(0.6, range - 0.25)).setY(Math.max(0.25, y));
+  }
+
+  /** Effets d'un coup à mains nues, placés au point de contact mesuré sur le sprite. */
+  private moveVfx(def: MoveDef, k: number, range: number, w: [number, number]): void {
     const fx = this.ctx.fx;
     const pos = this.position;
     const f = this.facing;
+    const fwd = this.forward;
+    const at = this.strikePoint(w, range);
     switch (def.vfx) {
       case 'claw':
         for (const [r, j] of [[range - 0.6, 0], [range, 1], [range + 0.5, 2]] as const) {
           fx.slashArc(pos, f + def.arc - j * 0.08, -def.arc * 2, r, PAL.void1, PAL.void3, 0.26, 1.0 + j * 0.15);
         }
-        fx.clawMarks(pos.clone().addScaledVector(this.forward, range * 0.8), f);
-        fx.aura(pos.clone().addScaledVector(this.forward, range * 0.8), PAL.void3, 14, 1.2);
+        fx.clawMarks(pos.clone().addScaledVector(fwd, range * 0.8), f);
+        fx.aura(pos.clone().addScaledVector(fwd, range * 0.8), PAL.void3, 14, 1.2);
         break;
       case 'spin':
-        fx.slashArc(pos, f, Math.PI * 2 * this.arcSign, range + 0.2, PAL.void1, PAL.void3, 0.34, 1.0);
+        // Tour complet : anneau d'énergie à hauteur des poings, plus large au second balayage.
+        fx.slashArc(pos, f, Math.PI * 2 * this.arcSign, range + 0.15, PAL.void1, PAL.void3, 0.3, at.y);
+        fx.dust(pos, 8, 1.1);
         if (k > 0) {
-          fx.slashArc(pos, f + 0.6, Math.PI * 2 * this.arcSign, range - 0.6, PAL.void0, PAL.void2, 0.38, 0.6);
-          fx.crack(pos.clone().addScaledVector(this.forward, 1.2), PAL.void1, 1.3);
-          this.ctx.cameraRig.punch(0.07);
+          fx.slashArc(pos, f + 0.6, Math.PI * 2 * this.arcSign, range + 0.5, PAL.void0, PAL.void2, 0.36, 0.5);
+          fx.crack(pos.clone().addScaledVector(fwd, 1.0), PAL.void1, 1.1);
         }
-        fx.swordTrail(pos, f, range, PAL.void3, 20);
         break;
       case 'slam':
-        fx.slashArc(pos, f - def.arc, def.arc * 2, range + 0.2, PAL.void1, PAL.void3, 0.26, 0.5);
-        fx.crack(pos.clone().addScaledVector(this.forward, Math.min(range, 1.7)), PAL.void1, 1.1);
-        this.ctx.cameraRig.punch(0.05);
-        fx.swordTrail(pos, f, range, PAL.void2, 18);
+        // Poing au sol à la réception : fissure, poussière, éclat.
+        fx.crack(at.clone().setY(0), PAL.void1, 1.2);
+        fx.burst(at.clone().setY(0.3), PAL.void3, 3.2);
+        fx.dust(at.clone().setY(0), 14, 1.4);
         break;
       case 'kick':
+        // Coup de pied : souffle vers l'avant à hauteur du pied.
+        fx.burst(at, PAL.void2, 2.4);
+        fx.slashArc(pos, f - def.arc * 0.5, def.arc, range + 0.1, PAL.void0, PAL.void2, 0.18, at.y);
+        fx.dust(pos.clone().addScaledVector(fwd, 0.4), 5, 0.7);
+        break;
       case 'uppercut':
-        fx.shockwave(pos.clone().addScaledVector(this.forward, range * 0.8).setY(def.vfx === 'uppercut' ? 0.9 : 0.6), PAL.void2, 0.9);
-        fx.dust(pos.clone().addScaledVector(this.forward, 0.6), 6, 0.8);
+        // Uppercut : gerbe qui monte depuis le poing.
+        fx.burst(at, PAL.void3, 2.6);
+        fx.converge(at, PAL.void2, 2, 0.8);
+        fx.dust(pos, 6, 0.8);
         break;
       default: {
-        // Taille : l'arc alterne de sens à chaque coup (rafale comprise).
+        // Jab / revers / rafale : éclat au poing et court arc d'énergie qui alterne de sens.
         this.arcSign *= -1;
         const big = def.vfx === 'flurry' && k === 2;
-        fx.slashArc(pos, f - def.arc * this.arcSign, def.arc * 2 * this.arcSign, range + 0.15, PAL.void1, PAL.void3, big ? 0.26 : 0.22, big ? 0.6 : 1.2);
-        fx.swordTrail(pos, f, range, PAL.void2, big ? 16 : 10);
-        if (big) fx.crack(pos.clone().addScaledVector(this.forward, Math.min(range, 1.6)), PAL.void1, 0.9);
+        fx.burst(at, big ? PAL.void3 : PAL.void2, big ? 2.8 : 1.8);
+        fx.slashArc(pos, f - def.arc * 0.6 * this.arcSign, def.arc * 1.2 * this.arcSign, range + 0.05, PAL.void0, PAL.void2, big ? 0.2 : 0.14, at.y);
+        if (big) fx.dust(pos.clone().addScaledVector(fwd, 0.5), 6, 0.8);
       }
     }
   }
@@ -646,7 +663,7 @@ export class Player extends Entity {
     if (!this.alive) return;
     const dir = new THREE.Vector3().subVectors(this.position, from.position).setY(0).normalize();
     if (result.blocked && this.stats.hp > 0) {
-      // Coup encaissé en garde : recul, endurance, l'épée vibre — pas d'interruption.
+      // Coup encaissé en garde : recul, endurance — pas d'interruption.
       this.flash(0.05);
       this.applyKnockback(dir, hit.knockback * 0.45);
       this.spendStamina(GUARD_COST);

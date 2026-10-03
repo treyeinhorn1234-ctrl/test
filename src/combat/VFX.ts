@@ -331,6 +331,31 @@ export class VFX {
     }
   }
 
+  /**
+   * Impact d'un coup de poing / pied : éclair à l'endroit du contact, traits
+   * de vitesse rayonnants, anneau au sol sous la cible et poussière soulevée.
+   * `power` ~ 1 (jab) à 2,5 (finisher).
+   */
+  punchImpact(pos: THREE.Vector3, dir: THREE.Vector3, power: number): void {
+    const p = Math.max(0.6, power);
+    this.burst(pos, PAL.void3, 2 + p * 1.1);
+    // Traits de vitesse : rapides et brefs, surtout dans le sens du coup.
+    const n = Math.round(8 + p * 7);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const along = i % 2 === 0 ? 1 : 0.35;
+      const s = randRange(R, 9, 15) * (0.7 + p * 0.25);
+      this.sparks.emit({
+        x: pos.x, y: pos.y, z: pos.z,
+        vx: (Math.cos(a) * 0.6 + dir.x * along) * s, vy: Math.sin(a) * s * 0.55, vz: (Math.sin(a) * 0.6 + dir.z * along) * s,
+        life: randRange(R, 0.07, 0.14), color: 0xffffff, colorEnd: PAL.void1, intensity: 4, size: i % 3 === 0 ? 2 : 1, drag: 9,
+      });
+    }
+    const ground = new THREE.Vector3(pos.x, 0, pos.z);
+    this.shockwave(ground, PAL.void2, 0.5 + p * 0.45, 0.22 + p * 0.04);
+    this.dust(ground, Math.round(3 + p * 3), 0.5 + p * 0.25);
+  }
+
   /** Nuage de poussière (esquive, chute). */
   dust(pos: THREE.Vector3, count = 8, spread = 1): void {
     for (let i = 0; i < count; i++) {

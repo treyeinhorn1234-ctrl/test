@@ -89,6 +89,8 @@ export const SFX_GENERATORS: Record<string, SfxGenerator> = {
       thump(sr, 0.18, 220, 80, 0.7),
       buffer(sr, 0.08, (t) => (Math.random() < 0.02 ? rnd() : 0) * Math.exp(-t * 30)),
     ),
+  // Coup de poing qui porte : choc sourd et claquement.
+  punch: (sr) => mix(thump(sr, 0.2, 190, 50, 1.0), noiseBurst(sr, 0.05, 3500, 0.8), lowpass(buffer(sr, 0.12, (t) => rnd() * Math.exp(-t * 40)), sr, () => 1400)),
   // Parade parfaite : tintement clair et étincelle.
   parry: (sr) => mix(bell(sr, 0.8, [784, 1568, 2349, 3136], 0.06, 0.65), noiseBurst(sr, 0.04, 9000, 0.6), whoosh(sr, 0.15, 2000, 6000, 0.3)),
   block: (sr) => mix(bell(sr, 0.5, [523, 1231, 1873, 2467], 0.12, 0.5), noiseBurst(sr, 0.05, 6000, 0.6)),

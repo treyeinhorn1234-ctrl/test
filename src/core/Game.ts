@@ -58,6 +58,8 @@ export class Game {
   private time = 0;
   private realTime = 0;
   private hitstopTime = 0;
+  private slowTime = 0;
+  private slowScale = 1;
   private last = performance.now();
   private fpsFrames = 0;
   private fpsTime = 0;
@@ -103,6 +105,13 @@ export class Game {
       hitstop: (d) => {
         this.hitstopTime = Math.max(this.hitstopTime, d);
       },
+      slowmo: (scale, d) => {
+        if (d >= this.slowTime) {
+          this.slowTime = d;
+          this.slowScale = scale;
+        }
+      },
+      screenFlash: (color, strength, decay = 6) => this.renderer.triggerFlash(color, strength, decay),
       attackTokens: { used: 0, max: 2 },
     };
 
@@ -215,7 +224,7 @@ export class Game {
       this.later(3, () =>
         this.hud.showMessage(
           'Réveil',
-          `Mille ans de silence. Tes muscles se souviennent d'Eclipse. ${this.input.actionLabel('moveUp')}${this.input.actionLabel('moveLeft')}${this.input.actionLabel('moveDown')}${this.input.actionLabel('moveRight')} : se déplacer · Clic gauche : combo (en courant : bond) · Clic droit : tour complet (pendant le combo : coup de pied) · ${this.input.actionLabel('block')} : garde, parade juste avant l'impact · ${this.input.actionLabel('dodge')} : roulade (puis clic : uppercut) · ${this.input.actionLabel('spell1')} : Griffe abyssale · ${this.input.actionLabel('interact')} : examiner.`,
+          `Mille ans de silence. Tes poings, eux, n'ont rien oublié. ${this.input.actionLabel('moveUp')}${this.input.actionLabel('moveLeft')}${this.input.actionLabel('moveDown')}${this.input.actionLabel('moveRight')} : se déplacer · Clic gauche : combo (en courant : bond) · Clic droit : tour complet (pendant le combo : coup de pied) · ${this.input.actionLabel('block')} : garde, parade juste avant l'impact · ${this.input.actionLabel('dodge')} : roulade (puis clic : uppercut) · ${this.input.actionLabel('spell1')} : Griffe abyssale · ${this.input.actionLabel('interact')} : examiner.`,
           9,
         ),
       );
@@ -449,6 +458,10 @@ export class Game {
       this.hitstopTime -= realDt;
       dt = 0;
       frozen = this.mode === 'playing';
+    } else if (this.slowTime > 0) {
+      // Ralenti (finisher, mise à mort) : retour progressif à la vitesse normale.
+      this.slowTime -= realDt;
+      dt *= this.slowScale + (1 - this.slowScale) * Math.max(0, 1 - this.slowTime / 0.25) * 0.5;
     }
     const simulate = this.mode === 'playing' || this.mode === 'dead' || this.mode === 'menu';
     if (!simulate) dt = 0;
