@@ -1,11 +1,16 @@
--- Installateur SCP – Containment Breach pour Roblox Studio.
---
--- Utilisation : dans Studio, Affichage > Barre de commande, colle tout ce fichier et appuie sur Entrée.
---
--- Il télécharge le code du projet depuis GitHub (sans Rojo), l'installe dans
---   ReplicatedStorage.Shared, ServerScriptService.Server et ServerStorage.SCPTools,
--- règle l'éclairage, active la galerie de test et prépare les modèles déjà importés.
--- On peut le relancer pour mettre à jour : il remplace seulement ce qu'il a installé lui-même.
+--[[
+	Installateur SCP – Containment Breach pour Roblox Studio.
+
+	Utilisation : dans Studio, Affichage > Barre de commande, colle tout ce fichier et appuie sur Entrée.
+
+	Il télécharge le code du projet depuis GitHub (sans Rojo), l'installe dans
+	ReplicatedStorage.Shared, ServerScriptService.Server et ServerStorage.SCPTools,
+	règle l'éclairage, active la galerie de test et prépare les modèles déjà importés.
+	On peut le relancer pour mettre à jour : il remplace seulement ce qu'il a installé lui-même.
+
+	Ce fichier n'utilise que des commentaires en bloc : la barre de commande met souvent le texte
+	collé sur une seule ligne, et un commentaire de fin de ligne avalerait tout le reste du script.
+]]
 
 local OWNER = "treyeinhorn1234-ctrl"
 local REPO = "test"
@@ -26,7 +31,9 @@ local function log(msg: string)
 	print("[SCP] " .. msg)
 end
 
--- 1. Accès HTTP (nécessaire pour lire GitHub ; réglage du jeu, modifiable dans Paramètres du jeu > Sécurité)
+log("Installateur démarré. Les messages s'affichent dans la fenêtre Sortie (Affichage > Sortie).")
+
+--[[ 1. Accès HTTP (nécessaire pour lire GitHub ; réglage du jeu, modifiable dans Paramètres du jeu > Sécurité) ]]
 HttpService.HttpEnabled = true
 
 local function fetch(path: string): string
@@ -44,7 +51,7 @@ local function fetch(path: string): string
 	return ""
 end
 
--- 2. Liste des fichiers
+--[[ 2. Liste des fichiers ]]
 log("Lecture de la liste des fichiers…")
 local files = {}
 for line in string.gmatch(fetch("manifest.txt"), "[^\r\n]+") do
@@ -52,7 +59,7 @@ for line in string.gmatch(fetch("manifest.txt"), "[^\r\n]+") do
 end
 log(`{#files} scripts à installer.`)
 
--- Les dossiers qui contiennent un init.luau deviennent des ModuleScripts (convention Rojo)
+--[[ Les dossiers qui contiennent un init.luau deviennent des ModuleScripts (convention Rojo) ]]
 local moduleDirs = {}
 for _, path in files do
 	local dir = string.match(path, "^(.*)/init%.luau$")
@@ -61,7 +68,7 @@ for _, path in files do
 	end
 end
 
--- 3. Racines : on ne remplacera que ce que l'installateur a créé lui-même
+--[[ 3. Racines : on ne remplacera que ce que l'installateur a créé lui-même ]]
 local rootInstances = {}
 for prefix, root in ROOTS do
 	local existing = root.service:FindFirstChild(root.name)
@@ -77,7 +84,7 @@ end
 local created: { [string]: Instance } = {}
 
 local function container(path: string): Instance
-	-- path : chemin d'un dossier, ex. "src/server/Generated/RoomColliders/lockroom"
+	--[[ path : chemin d'un dossier, ex. "src/server/Generated/RoomColliders/lockroom" ]]
 	if created[path] then
 		return created[path]
 	end
@@ -112,7 +119,7 @@ local function install(path: string, source: string)
 	inst.Parent = container(dir)
 end
 
--- 4. Téléchargement (plusieurs à la fois) puis création des scripts
+--[[ 4. Téléchargement (plusieurs à la fois) puis création des scripts ]]
 log("Téléchargement depuis GitHub…")
 local sources: { [string]: string } = {}
 local nextIndex, done, failure = 1, 0, nil
@@ -147,7 +154,7 @@ end
 for _, path in files do
 	install(path, sources[path])
 end
--- Tout est téléchargé : on remplace l'ancienne installation seulement maintenant
+--[[ Tout est téléchargé : on remplace l'ancienne installation seulement maintenant ]]
 for prefix, inst in rootInstances do
 	local root = ROOTS[prefix]
 	local old = root.service:FindFirstChild(root.name)
@@ -158,12 +165,12 @@ for prefix, inst in rootInstances do
 end
 log("Code installé.")
 
--- 5. Réglages pour tester
+--[[ 5. Réglages pour tester ]]
 Lighting.Technology = Enum.Technology.Future
 workspace:SetAttribute("SCP_RoomGallery", true)
 log("Éclairage Future et galerie de test activés.")
 
--- 6. Préparation des modèles déjà importés
+--[[ 6. Préparation des modèles déjà importés ]]
 local count = require(rootInstances["src/studio"]:WaitForChild("PrepareAssets"))()
 
 if count.Rooms == 0 then
