@@ -189,25 +189,31 @@ local function addColliders(room: Model, template: RoomTemplate, roomCFrame: CFr
 		warn(`Pas de collisions générées pour {template.name}`)
 		return
 	end
-	local data: { aligned: { number }, rotated: { number } } = require(source :: ModuleScript) :: any
 	local folder = Instance.new("Model")
 	folder.Name = "Colliders"
 	local proto = newCollider()
 
-	local a = data.aligned
-	for i = 1, #a, 6 do
-		local part = proto:Clone()
-		part.Size = Vector3.new(a[i + 3], a[i + 4], a[i + 5])
-		part.CFrame = roomCFrame * CFrame.new(a[i], a[i + 1], a[i + 2])
-		part.Parent = folder
-	end
-	local r = data.rotated
-	for i = 1, #r, 15 do
-		local part = proto:Clone()
-		part.Size = Vector3.new(r[i + 3], r[i + 4], r[i + 5])
-		part.CFrame = roomCFrame
-			* CFrame.new(r[i], r[i + 1], r[i + 2], r[i + 6], r[i + 7], r[i + 8], r[i + 9], r[i + 10], r[i + 11], r[i + 12], r[i + 13], r[i + 14])
-		part.Parent = folder
+	-- Les données sont découpées en plusieurs modules pour rester de taille raisonnable
+	for _, chunk in source:GetChildren() do
+		if not chunk:IsA("ModuleScript") then
+			continue
+		end
+		local data: { aligned: { number }, rotated: { number } } = require(chunk) :: any
+		local a = data.aligned
+		for i = 1, #a, 6 do
+			local part = proto:Clone()
+			part.Size = Vector3.new(a[i + 3], a[i + 4], a[i + 5])
+			part.CFrame = roomCFrame * CFrame.new(a[i], a[i + 1], a[i + 2])
+			part.Parent = folder
+		end
+		local r = data.rotated
+		for i = 1, #r, 15 do
+			local part = proto:Clone()
+			part.Size = Vector3.new(r[i + 3], r[i + 4], r[i + 5])
+			part.CFrame = roomCFrame
+				* CFrame.new(r[i], r[i + 1], r[i + 2], r[i + 6], r[i + 7], r[i + 8], r[i + 9], r[i + 10], r[i + 11], r[i + 12], r[i + 13], r[i + 14])
+			part.Parent = folder
+		end
 	end
 	proto:Destroy()
 	folder.Parent = room

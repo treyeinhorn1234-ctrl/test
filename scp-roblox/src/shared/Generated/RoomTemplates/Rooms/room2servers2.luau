@@ -1,0 +1,70 @@
+--!nocheck
+-- FICHIER GÉNÉRÉ par tools/convert_scpcb.py : ne pas modifier à la main.
+
+return {
+	name = "room2servers2",
+	description = "A server room dedicated to keep the Site-COMmunications up and running (no real value).",
+	shape = "2",
+	commonness = 0,
+	large = false,
+	disableDecals = false,
+	zones = { 3 },
+	asset = "room2servers2",
+	boundsMin = { -27.0375, -20.0005, -25.6 },
+	boundsMax = { 20.4, 11.6213, 26.2249 },
+	triggerBoxes = {},
+	lights = {
+		{
+			position = { -7.9988, -6.7528, 19.1783 },
+			range = 25,
+			color = { 255, 255, 255 },
+			brightness = 1.2,
+		},
+		{
+			position = { -0.0261, 9.3239, 0 },
+			range = 15,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+		{
+			position = { -0.0261, 9.3239, 19.2 },
+			range = 15,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+		{
+			position = { -0.0261, 9.3239, -19.2 },
+			range = 15,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+	},
+	spotlights = {},
+	waypoints = {
+		{ 0, 1.65, -16.7 },
+		{ 0, 1.65, 18.5 },
+		{ 0.3988, 1.65, -0.1005 },
+		{ 16.8, 1.65, -15.1 },
+		{ 16.8, -4.75, 0.1 },
+		{ 16.8, -17.55, 17.7 },
+		{ -2.4, -17.55, 19.3 },
+		{ -12, -17.55, 14.5 },
+		{ -12, -17.55, 0.9 },
+		{ -2.4, -17.55, 0.1 },
+		{ -2.4, -17.55, -19.1 },
+		{ 5.6, -17.55, -18.3 },
+		{ 4.8, -17.55, 0.1 },
+	},
+	sounds = {},
+	screens = {},
+	props = {
+		{
+			model = "officeseat_a",
+			file = "officeseat_a.x",
+			position = { -2.7975, -19.2, 11.2015 },
+			rotation = { 0.99619, 0, -0.08716, 0, 1, 0, 0.08716, 0, 0.99619 },
+			scale = { 3.5, 3.5, 3.5 },
+		},
+	},
+	playerStarts = {},
+}

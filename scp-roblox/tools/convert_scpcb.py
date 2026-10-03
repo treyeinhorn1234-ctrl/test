@@ -7,8 +7,9 @@ Produit :
   build/rooms/<salle>/<salle>.obj (+ .mtl, textures/)   une salle par dossier
   build/props/<prop>/<prop>.obj                          les objets posés dans les salles
   build/models/<dossier>/<modèle>.obj                    portes, SCP, objets…
-  ../src/shared/Generated/RoomTemplates.luau             données des salles pour le jeu
-  ../src/server/Generated/RoomColliders/<salle>.luau     collisions des salles (boîtes)
+  ../src/shared/Generated/RoomTemplates/                 données des salles pour le jeu
+  ../src/server/Generated/RoomColliders/<salle>/         collisions des salles (boîtes)
+  ../manifest.txt                                        liste des scripts, pour l'installateur Studio
   build/report.json                                      ce qui a été converti ou ignoré
 
 Le jeu original est sous licence CC BY-SA 3.0 (Regalis11/scpcb) : les fichiers
@@ -26,7 +27,7 @@ import sys
 from scpcb.b3d import load_b3d
 from scpcb.export import TextureStore, rotation_to_roblox, to_roblox, write_obj
 from scpcb.collide import build_colliders
-from scpcb.luau import write_room_colliders, write_room_templates
+from scpcb.luau import write_manifest, write_room_colliders, write_room_templates
 from scpcb.model import Model, euler_matrix
 from scpcb.rmesh import load_rmesh
 from scpcb.xfile import load_x
@@ -127,7 +128,7 @@ def convert_room(info: dict, fs: CaseInsensitiveFS, out: str, scale: float, text
     obj_path = os.path.join(out, "rooms", name, f"{name}.obj")
     stats = write_obj(visual, obj_path, scale, textures, texture_near=os.path.dirname(path))
     colliders = build_colliders(solid)
-    write_room_colliders(os.path.join(colliders_dir, f"{name}.luau"), info["name"], colliders)
+    write_room_colliders(os.path.join(colliders_dir, name), info["name"], colliders)
     report["rooms"].append({"name": info["name"], "file": os.path.relpath(obj_path, out),
                             "colliders": len(colliders), **stats})
 
@@ -270,8 +271,9 @@ def main() -> int:
     with open(os.path.join(args.out, "report.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=1, ensure_ascii=False)
 
-    write_room_templates(os.path.join(args.luau, "shared", "Generated", "RoomTemplates.luau"), rooms, ambience,
+    write_room_templates(os.path.join(args.luau, "shared", "Generated", "RoomTemplates"), rooms, ambience,
                          {k: v for k, v in props.items() if v}, args.scale)
+    write_manifest(args.luau, os.path.join(args.luau, "..", "manifest.txt"))
 
     print(f"\n{len(rooms)} salles, {len([p for p in props.values() if p])} props, {len(models)} modèles convertis.")
     print(f"{len(report['skipped'])} fichiers ignorés, {len(textures.missing)} textures manquantes (voir report.json).")

@@ -40,7 +40,23 @@ une salle de 51,2 studs et une porte de 7,8 studs.
 
 ## Installation
 
-### 1. Récupérer les modèles convertis
+### 1. Installer le code dans Studio (un seul script)
+
+1. Ouvre une place vide dans Roblox Studio.
+2. *Affichage* → *Barre de commande*.
+3. Copie tout le contenu de [`tools/studio/Install.luau`](tools/studio/Install.luau),
+   colle-le dans la barre de commande et appuie sur Entrée.
+
+Le script active les requêtes HTTP de la place, télécharge le code depuis GitHub
+et l'installe dans `ReplicatedStorage.Shared`, `ServerScriptService.Server` et
+`ServerStorage.SCPTools`. Il règle aussi l'éclairage sur `Future`, active la galerie
+de test et prépare les modèles déjà importés. Relance-le quand le code change sur
+GitHub : il remplace seulement ce qu'il a installé lui-même.
+
+Si tu préfères [Rojo](https://rojo.space/) : `rojo serve` dans `scp-roblox/`
+fait la même installation du code, synchronisée en direct.
+
+### 2. Récupérer les modèles convertis
 
 **Sans rien installer** : onglet *Actions* du dépôt GitHub → *SCP Roblox -
 conversion des modèles* → dernière exécution → télécharger l'artefact
@@ -57,38 +73,29 @@ python tools/convert_scpcb.py --game ../scpcb --out build
 Résultat dans `build/` : `rooms/<salle>/<salle>.obj`, `props/<prop>/<prop>.obj`,
 `models/…`, et `report.json` (ce qui a été converti ou ignoré).
 
-### 2. Synchroniser le code avec Rojo
+### 3. Importer les salles
 
-Installe [Rojo](https://rojo.space/docs/v7/getting-started/installation/) et son
-plugin Studio, puis dans le dossier `scp-roblox` :
+Roblox ne permet pas à un script d'importer des fichiers 3D : cette étape se fait
+à la main avec l'importateur de Studio.
 
-```bash
-rojo serve
-```
-
-Dans Studio : onglet *Plugins* → *Rojo* → *Connect*. Le code arrive dans
-`ReplicatedStorage.Shared` et `ServerScriptService.Server`.
-
-### 3. Importer les salles dans Studio
-
-1. *Fichier* → *Importer 3D* (ou onglet *Accueil* → *Importer 3D*), puis choisis un
-   `.obj` de `build/rooms/<salle>/`. Laisse les textures dans le dossier
-   `textures/` à côté du `.obj` pour qu'elles soient importées avec.
+1. *Accueil* → *Importer 3D*, puis choisis un `.obj` de `build/rooms/<salle>/`.
+   Laisse le dossier `textures/` à côté du `.obj` pour que les textures suivent.
    Commence par quelques salles, par exemple `lockroom`, `room2offices`, `room2`.
 2. Importe aussi les props de `build/props/` (17 fichiers).
-3. Ouvre la barre de commande (*Affichage* → *Barre de commande*), colle le contenu
-   de [`tools/studio/PrepareAssets.luau`](tools/studio/PrepareAssets.luau) et
-   appuie sur Entrée. Le script range les modèles dans `ServerStorage.SCPAssets`,
-   corrige leur pivot et leur échelle, et affiche ce qu'il reste à importer.
-   Il peut être relancé après chaque nouvel import.
+3. Dans la barre de commande :
+
+   ```lua
+   require(game.ServerStorage.SCPTools.PrepareAssets)()
+   ```
+
+   Les modèles sont rangés dans `ServerStorage.SCPAssets`, avec leur pivot et leur
+   échelle corrigés, et le script affiche ce qu'il reste à importer.
 
 ### 4. Tester
 
-1. Sélectionne *Workspace* et ajoute-lui l'attribut booléen `SCP_RoomGallery`
-   coché.
-2. Dans *Lighting*, mets `Technology` sur `Future` (pour les lumières des salles).
-3. *Jouer* : toutes les salles importées s'affichent côte à côte, avec leurs props,
-   leurs lumières et leurs collisions.
+Appuie sur *Jouer* : toutes les salles importées s'affichent côte à côte, avec leurs
+props, leurs lumières et leurs collisions. Pour désactiver la galerie, décoche
+l'attribut `SCP_RoomGallery` de *Workspace*.
 
 ## Organisation
 
@@ -99,13 +106,15 @@ scp-roblox/
   src/server/RoomBuilder.luau construit une salle : modèle, collisions, props, lumières
   src/server/RoomGallery…     galerie de test
   src/server/Generated/       collisions des salles (généré)
+  src/studio/PrepareAssets    préparation des modèles importés (ServerStorage.SCPTools)
+  manifest.txt                liste des scripts, lue par l'installateur (généré)
   tools/convert_scpcb.py      convertisseur
   tools/scpcb/                lecteurs RMesh, B3D, DirectX .x ; export OBJ ; collisions
-  tools/studio/               scripts à coller dans la barre de commande de Studio
+  tools/studio/Install.luau   installateur à coller dans la barre de commande
 ```
 
 Pour régénérer les données Luau après une modification du convertisseur, relance
-`convert_scpcb.py` : il réécrit `src/*/Generated/`.
+`convert_scpcb.py` : il réécrit `src/*/Generated/` et `manifest.txt`.
 
 ## Limites connues
 

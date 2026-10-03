@@ -1,0 +1,113 @@
+--!nocheck
+-- FICHIER GÉNÉRÉ par tools/convert_scpcb.py : ne pas modifier à la main.
+
+return {
+	name = "room035",
+	description = "SCP-035's containment chamber.",
+	shape = "1",
+	commonness = 0,
+	large = false,
+	disableDecals = false,
+	zones = { 2 },
+	asset = "room035",
+	boundsMin = { -18.4, -0.8, -22.8 },
+	boundsMax = { 31.2, 12.4614, 25.6 },
+	triggerBoxes = {},
+	lights = {
+		{
+			position = { -0.0261, 9.7239, 20.8 },
+			range = 15,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+		{
+			position = { -6.7978, 10.7739, -9.1979 },
+			range = 25,
+			color = { 255, 100, 100 },
+			brightness = 2,
+		},
+		{
+			position = { -7.3978, 10.7739, 7.0021 },
+			range = 20,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+		{
+			position = { 11.6022, 10.7739, 1.1021 },
+			range = 20,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+		{
+			position = { 24.8022, 10.7739, -14.3979 },
+			range = 20,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+	},
+	spotlights = {},
+	waypoints = {
+		{ 10.2, 1.7, -1.5 },
+	},
+	sounds = {},
+	screens = {},
+	props = {
+		{
+			model = "boxfile_a",
+			file = "boxfile_a.x",
+			position = { 5.7869, 3.1648, -17.4604 },
+			rotation = { 0, 0.17365, 0.98481, -1, 0, 0, 0, -0.98481, 0.17365 },
+			scale = { 3, 3, 3 },
+		},
+		{
+			model = "boxfile_b",
+			file = "boxfile_b.x",
+			position = { 5.7869, 3.4648, -17.4604 },
+			rotation = { 0, 0.17365, 0.98481, -1, 0, 0, 0, -0.98481, 0.17365 },
+			scale = { 2, 3, 3 },
+		},
+		{
+			model = "cabinet_a",
+			file = "cabinet_a.x",
+			position = { 17.2, 0, 14.6 },
+			rotation = { 0, 0, 1, 0, 1, 0, -1, 0, 0 },
+			scale = { 4, 4, 4 },
+		},
+		{
+			model = "cabinet_a",
+			file = "cabinet_a.x",
+			position = { 17.2, 0, 12 },
+			rotation = { 0, 0, 1, 0, 1, 0, -1, 0, 0 },
+			scale = { 4, 4, 4 },
+		},
+		{
+			model = "cabinet_a",
+			file = "cabinet_a.x",
+			position = { 17.2, 0, 9.4 },
+			rotation = { 0, 0, 1, 0, 1, 0, -1, 0, 0 },
+			scale = { 4, 4, 4 },
+		},
+		{
+			model = "crate1",
+			file = "crate1.x",
+			position = { 28.925, -0.075, -18.9581 },
+			rotation = { -0.08716, 0, 0.99619, 0, 1, 0, -0.99619, 0, -0.08716 },
+			scale = { 3, 3, 3 },
+		},
+		{
+			model = "crate3",
+			file = "crate3.x",
+			position = { 23.8061, 0, -20.0118 },
+			rotation = { -0.99619, 0, -0.08716, 0, 1, 0, 0.08716, 0, -0.99619 },
+			scale = { 5, 5, 5 },
+		},
+		{
+			model = "crate2",
+			file = "crate2.x",
+			position = { 23.005, 0.7, -20.2105 },
+			rotation = { 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+			scale = { 4, 4, 4 },
+		},
+	},
+	playerStarts = {},
+}

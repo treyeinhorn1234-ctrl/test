@@ -28,7 +28,9 @@ jobs:
 
       - name: Vérifier que les données Luau commitées sont à jour
         working-directory: scp-roblox
-        run: git diff --exit-code --stat -- src
+        run: |
+          git status --porcelain -- src manifest.txt
+          test -z "$(git status --porcelain -- src manifest.txt)"
 
       - name: Ajouter les crédits et la licence
         run: cp scp-roblox/CREDITS.md scp-roblox/LICENSE.md scp-roblox/build/

@@ -1,0 +1,102 @@
+--!nocheck
+-- FICHIER GÉNÉRÉ par tools/convert_scpcb.py : ne pas modifier à la main.
+
+return {
+	name = "room966",
+	description = "SCP-966's containment chamber.",
+	shape = "3",
+	commonness = 0,
+	large = false,
+	disableDecals = false,
+	zones = { 2 },
+	asset = "room966",
+	boundsMin = { -41.6, -88.8, -23.2 },
+	boundsMax = { 25.6, 12.8, 25.6 },
+	triggerBoxes = {},
+	lights = {
+		{
+			position = { 1.0261, 10.9239, -14.4 },
+			range = 15,
+			color = { 255, 94, 94 },
+			brightness = 1,
+		},
+		{
+			position = { 0.0261, 10.9239, 4.8 },
+			range = 15,
+			color = { 255, 255, 255 },
+			brightness = 1,
+		},
+	},
+	spotlights = {
+		{
+			position = { 17.6, 10.8, 0 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -1, 0 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+		{
+			position = { 0, 10.8, 17.6 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -1, 0 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+		{
+			position = { -17.6, 10.8, 0 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -1, 0 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+	},
+	waypoints = {
+		{ 0, 1.6, 0 },
+	},
+	sounds = {},
+	screens = {},
+	props = {
+		{
+			model = "keyboard",
+			file = "keyboard.x",
+			position = { -7.3708, 2.4, 8.7792 },
+			rotation = { 0, 0, 1, 0, 1, 0, -1, 0, 0 },
+			scale = { 1.5, 1.5, 1.5 },
+		},
+		{
+			model = "monitor",
+			file = "monitor.x",
+			position = { 10.7297, 2.9715, 2.2496 },
+			rotation = { 0, 0, -1, 0, 1, 0, 1, 0, 0 },
+			scale = { 1.6, 1.6, 1.6 },
+		},
+		{
+			model = "keyboard",
+			file = "keyboard.x",
+			position = { 9.7322, 2.9964, 2.2703 },
+			rotation = { 0, 0, -1, 0, 1, 0, 1, 0, 0 },
+			scale = { 1.7, 1.7, 1.7 },
+		},
+		{
+			model = "officeseat_a",
+			file = "officeseat_a.x",
+			position = { 8.8821, 0.1, 2.158 },
+			rotation = { 0.08716, 0, -0.99619, 0, 1, 0, 0.99619, 0, 0.08716 },
+			scale = { 3.5, 3.5, 3.5 },
+		},
+		{
+			model = "officeseat_a",
+			file = "officeseat_a.x",
+			position = { -5.5179, 0.1, 9.3678 },
+			rotation = { 0.08716, 0, 0.99619, 0, 1, 0, -0.99619, 0, 0.08716 },
+			scale = { 3.5, 3.5, 3.5 },
+		},
+	},
+	playerStarts = {},
+}

@@ -1,0 +1,75 @@
+--!nocheck
+-- FICHIER GÉNÉRÉ par tools/convert_scpcb.py : ne pas modifier à la main.
+
+return {
+	name = "tunnel",
+	description = "A two-door hallway, in the shape of a tunnel.",
+	shape = "2",
+	commonness = 100,
+	large = false,
+	disableDecals = false,
+	zones = { 2 },
+	asset = "tunnel",
+	boundsMin = { -7.2, -0.025, -25.6 },
+	boundsMax = { 7.2, 11.225, 25.6 },
+	triggerBoxes = {},
+	lights = {},
+	spotlights = {
+		{
+			position = { 0, 10.8, -19.2 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -0.7071, -0.7071 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+		{
+			position = { 0, 10.8, -6.4 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -1, 0 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+		{
+			position = { 0, 10.8, 6.4 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -1, 0 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+		{
+			position = { 0, 10.8, 19.2 },
+			range = 20,
+			color = { 255, 200, 200 },
+			brightness = 1.3,
+			direction = { 0, -0.7071, 0.7071 },
+			innerCone = 35,
+			outerCone = 45,
+		},
+	},
+	waypoints = {
+		{ 0, 1.25, 0.1 },
+		{ 0.8, 1.25, -14.3 },
+		{ 0.8, 1.25, 12.9 },
+	},
+	sounds = {
+		{
+			position = { 0, 12.0125, -12.9 },
+			ambience = 4,
+			range = 3,
+		},
+		{
+			position = { 0, 12.0125, 12.7 },
+			ambience = 4,
+			range = 3,
+		},
+	},
+	screens = {},
+	props = {},
+	playerStarts = {},
+}

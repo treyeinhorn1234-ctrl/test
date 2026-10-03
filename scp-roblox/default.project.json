@@ -11,6 +11,11 @@
       "Server": {
         "$path": "src/server"
       }
+    },
+    "ServerStorage": {
+      "SCPTools": {
+        "$path": "src/studio"
+      }
     }
   }
 }

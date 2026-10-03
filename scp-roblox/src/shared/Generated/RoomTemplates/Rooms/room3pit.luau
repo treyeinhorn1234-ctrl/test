@@ -1,0 +1,116 @@
+--!nocheck
+-- FICHIER GÉNÉRÉ par tools/convert_scpcb.py : ne pas modifier à la main.
+
+return {
+	name = "room3pit",
+	description = "A three-door walkway, with a large box-like structure in the back wall.",
+	shape = "3",
+	commonness = 100,
+	large = false,
+	disableDecals = true,
+	zones = { 2 },
+	asset = "room3pit",
+	boundsMin = { -25.6, -24.025, -8.8 },
+	boundsMax = { 25.6, 9.625, 25.6 },
+	triggerBoxes = {},
+	lights = {
+		{
+			position = { 6.1, 7.7, -0.4 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { 6.1, 7.7, 3.5 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { -6.1, 7.7, -4.3 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { -6.1, 7.7, -0.4 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { -6.1, 7.7, 3.5 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { -3.9, 7.7, 6.1 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { 0, 7.7, 6.1 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { 3.9, 7.7, 6.1 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+		{
+			position = { 6.1, 7.7, -4.3 },
+			range = 10,
+			color = { 255, 220, 220 },
+			brightness = 0.9,
+		},
+	},
+	spotlights = {
+		{
+			position = { -24.1, 9.35, 0 },
+			range = 12.5,
+			color = { 255, 255, 255 },
+			brightness = 1.4,
+			direction = { 0, -1, 0 },
+			innerCone = 45,
+			outerCone = 55,
+		},
+		{
+			position = { 24.1, 9.35, 0 },
+			range = 12.5,
+			color = { 255, 255, 255 },
+			brightness = 1.4,
+			direction = { 0, -1, 0 },
+			innerCone = 45,
+			outerCone = 55,
+		},
+		{
+			position = { -0.0688, 9.35, 24.05 },
+			range = 12.5,
+			color = { 255, 255, 255 },
+			brightness = 1.4,
+			direction = { 0, -1, 0 },
+			innerCone = 45,
+			outerCone = 55,
+		},
+	},
+	waypoints = {
+		{ 0, 0.8, 15.225 },
+		{ 15.2, 0.8, 0.025 },
+		{ -15.2, 0.8, 0.025 },
+	},
+	sounds = {
+		{
+			position = { 0, 3.2, 0 },
+			ambience = 2,
+			range = 4,
+		},
+	},
+	screens = {},
+	props = {},
+	playerStarts = {},
+}
