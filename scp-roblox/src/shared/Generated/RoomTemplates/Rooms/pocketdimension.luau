@@ -12,6 +12,9 @@ return {
 	asset = "pocketdimension",
 	boundsMin = { -12.8, -0.8, -12.8 },
 	boundsMax = { 12.8, 25.6, 12.8 },
+	parts = {
+		rockmoss = { 0, 12.4, 0, 25.6, 26.4, 25.6 },
+	},
 	triggerBoxes = {},
 	lights = {
 		{

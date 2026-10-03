@@ -12,6 +12,12 @@ return {
 	asset = "room2_5",
 	boundsMin = { -7.6, -0.025, -25.6 },
 	boundsMax = { 8, 9.6717, 25.6 },
+	parts = {
+		whitewall = { 0, 4.8, 0, 15.2, 9.6, 51.2 },
+		concretefloor = { 0.2, 4.788, 0, 15.6, 9.625, 51.2 },
+		misc = { 0.024, 9.624, 0, 0.6, 0.096, 39.4 },
+		dirtymetal = { 0, 7.8, 0, 14.8, 1.6, 41.6 },
+	},
 	triggerBoxes = {},
 	lights = {
 		{

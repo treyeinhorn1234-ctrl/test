@@ -23,6 +23,7 @@ export type RoomTemplate = {
 	asset: string,
 	boundsMin: { number },
 	boundsMax: { number },
+	parts: { [string]: { number } }, -- MeshPart -> centre x, y, z, taille x, y, z (repère du fichier)
 	triggerBoxes: { { name: string, min: { number }, max: { number } } },
 	lights: { Light },
 	spotlights: { SpotLight },
@@ -36,7 +37,7 @@ export type RoomTemplate = {
 local RoomTemplates: {
 	scale: number,
 	ambience: { string },
-	props: { [string]: { boundsMin: { number }, boundsMax: { number } } },
+	props: { [string]: { boundsMin: { number }, boundsMax: { number }, parts: { [string]: { number } } } },
 	rooms: { [string]: RoomTemplate },
 } = require(ReplicatedStorage.Shared.Generated.RoomTemplates) :: any
 

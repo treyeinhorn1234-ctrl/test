@@ -75,7 +75,8 @@ def write_room_templates(folder: str, rooms: list[dict], ambience: list[str], pr
     common = {
         "scale": scale,
         "ambience": ambience,
-        "props": {k: {"boundsMin": [round(x, 4) for x in v["min"]], "boundsMax": [round(x, 4) for x in v["max"]]}
+        "props": {k: {"boundsMin": [round(x, 4) for x in v["min"]], "boundsMax": [round(x, 4) for x in v["max"]],
+                      "parts": v["parts"]}
                   for k, v in sorted(props.items())},
     }
     _write(os.path.join(folder, "init.luau"),

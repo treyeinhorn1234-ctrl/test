@@ -12,6 +12,14 @@ return {
 	asset = "tunnel",
 	boundsMin = { -7.2, -0.025, -25.6 },
 	boundsMax = { 7.2, 11.225, 25.6 },
+	parts = {
+		concretewall = { 0, 5.6, 0, 14.4, 11.2, 51.2 },
+		metal3 = { 0, -0.012, 0, 12.8, 0.025, 51.2 },
+		dirtymetal = { 0, 5.613, 0, 13.6, 11.225, 51.2 },
+		vent = { 0, 11.175, 0, 2.4, 0.05, 28.8 },
+		misc = { 0, 5.787, 0, 9.666, 10.816, 39.4 },
+		concretefloor = { 0, 5.6, 0, 14.4, 11.2, 49.6 },
+	},
 	triggerBoxes = {},
 	lights = {},
 	spotlights = {

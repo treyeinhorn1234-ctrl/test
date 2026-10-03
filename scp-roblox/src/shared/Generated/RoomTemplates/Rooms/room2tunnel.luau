@@ -12,6 +12,17 @@ return {
 	asset = "room2tunnel",
 	boundsMin = { -22, -0.8, -25.6 },
 	boundsMax = { 22, 12.8, 25.6 },
+	parts = {
+		["2_office_lamps_dif"] = { -0.002, 9.335, -0.003, 1.786, 2.672, 34.632 },
+		containment_doors = { 0, 5.161, 0, 21.964, 10.351, 4.604 },
+		metal3 = { 0, -0.4, 0, 44, 0.8, 51.2 },
+		concretewall = { 0, 4.8, 0, 20, 9.6, 51.2 },
+		metal = { 0, 6.4, 0, 44, 12.8, 48 },
+		dirtymetal = { 0, 6.4, 0, 42.4, 12.8, 48 },
+		concretefloor = { 0, 6.4, 0, 42.4, 12.8, 51.2 },
+		misc = { 0, 10.7, 0, 29.6, 2.4, 33.8 },
+		miscsigns = { 0, 8.8, 0, 11.2, 1.4, 36 },
+	},
 	triggerBoxes = {},
 	lights = {
 		{

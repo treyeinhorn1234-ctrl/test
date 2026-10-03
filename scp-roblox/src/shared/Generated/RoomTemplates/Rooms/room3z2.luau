@@ -12,6 +12,14 @@ return {
 	asset = "room3z2",
 	boundsMin = { -25.6, -0.8, -6.4 },
 	boundsMax = { 25.6, 10.4, 25.6 },
+	parts = {
+		metal3 = { 0, -0.4, 9.8, 51.2, 0.8, 31.6 },
+		concretewall = { 0, 4.8, 9.6, 51.2, 9.6, 32 },
+		concretefloor = { 0, 5.2, 9.4, 51.2, 10.4, 30.8 },
+		metalpanels2 = { 0, 4.8, -5.2, 40.8, 7.2, 0.8 },
+		misc = { 1.6, 9.5, 4.9, 10.6, 0, 10.4 },
+		dirtymetal = { 1.6, 9.548, 4.9, 10.6, 0.096, 10.4 },
+	},
 	triggerBoxes = {},
 	lights = {
 		{

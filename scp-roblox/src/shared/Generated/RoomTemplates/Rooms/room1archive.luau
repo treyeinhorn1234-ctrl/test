@@ -12,6 +12,12 @@ return {
 	asset = "room1archive",
 	boundsMin = { -19.2, -0.4, -18.8 },
 	boundsMax = { 7.2, 15.006, 25.6 },
+	parts = {
+		metal = { -6, 4.8, 4, 24.8, 9.6, 43.2 },
+		whitewall = { -6, 7.303, 3.4, 26.4, 15.406, 44.4 },
+		dirtymetal = { -6, 5.6, 1.85, 24.8, 8, 35.5 },
+		misc = { -6, 4.775, 0.4, 26.4, 9.55, 38.4 },
+	},
 	triggerBoxes = {},
 	lights = {
 		{

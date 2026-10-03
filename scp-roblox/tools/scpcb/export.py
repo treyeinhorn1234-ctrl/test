@@ -99,6 +99,9 @@ def write_obj(
     hi = [-math.inf] * 3
     materials: dict[str, str | None] = {}
     tri_count = 0
+    # Centre et taille de chaque objet (= chaque MeshPart dans Roblox), pour que Studio
+    # puisse retrouver comment l'importateur a placé le modèle
+    parts: dict[str, list[float]] = {}
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(f"# Converti depuis SCP - Containment Breach (CC BY-SA 3.0)\nmtllib {name}.mtl\n")
         v_off = 1
@@ -109,6 +112,10 @@ def write_obj(
                 for i in range(3):
                     lo[i] = min(lo[i], p[i])
                     hi[i] = max(hi[i], p[i])
+            plo = [min(p[i] for p in pts) for i in range(3)]
+            phi = [max(p[i] for p in pts) for i in range(3)]
+            parts[obj_name] = [round((plo[i] + phi[i]) / 2, 3) for i in range(3)] + \
+                [round(phi[i] - plo[i], 3) for i in range(3)]
             normals = _normals(pts, tris)
             mat = _material_name(part.texture, part.alpha)
             materials[mat] = part.texture
@@ -134,7 +141,7 @@ def write_obj(
 
     if tri_count == 0:
         lo = hi = [0.0, 0.0, 0.0]
-    return {"triangles": tri_count, "objects": len(objects), "min": lo, "max": hi}
+    return {"triangles": tri_count, "objects": len(objects), "min": lo, "max": hi, "parts": parts}
 
 
 class TextureStore:

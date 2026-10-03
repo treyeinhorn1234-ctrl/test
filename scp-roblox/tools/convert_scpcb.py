@@ -130,7 +130,7 @@ def convert_room(info: dict, fs: CaseInsensitiveFS, out: str, scale: float, text
     colliders = build_colliders(solid)
     write_room_colliders(os.path.join(colliders_dir, name), info["name"], colliders)
     report["rooms"].append({"name": info["name"], "file": os.path.relpath(obj_path, out),
-                            "colliders": len(colliders), **stats})
+                            "colliders": len(colliders), **{k: v for k, v in stats.items() if k != "parts"}})
 
     def pos(p):
         return [round(v, 4) for v in to_roblox(p, scale)]
@@ -181,6 +181,8 @@ def convert_room(info: dict, fs: CaseInsensitiveFS, out: str, scale: float, text
         "asset": name,
         "boundsMin": [round(v, 4) for v in stats["min"]],
         "boundsMax": [round(v, 4) for v in stats["max"]],
+        # MeshPart -> { centre x, y, z, taille x, y, z } dans le repère du fichier
+        "parts": stats["parts"],
         "triggerBoxes": triggers,
         **entities,
     }
@@ -196,11 +198,11 @@ def convert_model(path: str, out_dir: str, scale: float, textures: TextureStore,
     name = name or safe_name(os.path.splitext(os.path.basename(path))[0])
     obj_path = os.path.join(out_dir, name, f"{name}.obj")
     stats = write_obj(model, obj_path, scale, textures, texture_near=os.path.dirname(path))
-    entry = {"file": key, "obj": obj_path, **stats}
+    entry = {"file": key, "obj": obj_path, **{k: v for k, v in stats.items() if k != "parts"}}
     if has_bones(path):
         entry["note"] = "modèle animé : exporté en pose de repos, sans squelette"
     report["models"].append(entry)
-    return {"min": stats["min"], "max": stats["max"]}
+    return {"min": stats["min"], "max": stats["max"], "parts": stats["parts"]}
 
 
 def main() -> int:

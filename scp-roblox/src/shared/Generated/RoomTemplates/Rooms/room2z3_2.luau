@@ -12,6 +12,12 @@ return {
 	asset = "room2z3_2",
 	boundsMin = { -7.6, -0.025, -25.6 },
 	boundsMax = { 7.6, 10.4, 25.6 },
+	parts = {
+		officewall = { 0, 4.8, 0, 15.2, 9.6, 51.2 },
+		ceiling = { 0, 10, 0, 15.2, 0.8, 51.2 },
+		misc = { 0, 10, -0.4, 4.2, 0.8, 50.4 },
+		tilefloor = { 0, -0.013, 0, 12.8, 0.025, 51.2 },
+	},
 	triggerBoxes = {},
 	lights = {},
 	spotlights = {},
