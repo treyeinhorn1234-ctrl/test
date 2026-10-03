@@ -1,0 +1,40 @@
+name: SCP Roblox - conversion des modèles
+
+# Convertit les salles et modèles de SCP - Containment Breach (Regalis11/scpcb, CC BY-SA 3.0)
+# en .obj pour Roblox Studio, et publie le résultat en artefact téléchargeable.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scp-roblox/tools/**"
+      - ".github/workflows/scp-roblox-assets.yml"
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Récupérer le jeu d'origine
+        run: git clone --depth 1 https://github.com/Regalis11/scpcb.git ../scpcb
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Convertir
+        working-directory: scp-roblox
+        run: python tools/convert_scpcb.py --game ../../scpcb --out build
+
+      - name: Vérifier que les données Luau commitées sont à jour
+        working-directory: scp-roblox
+        run: git diff --exit-code --stat -- src
+
+      - name: Ajouter les crédits et la licence
+        run: cp scp-roblox/CREDITS.md scp-roblox/LICENSE.md scp-roblox/build/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scp-roblox-modeles
+          path: scp-roblox/build
+          retention-days: 30
