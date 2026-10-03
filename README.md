@@ -61,7 +61,13 @@ marche en 4 temps. Varyn : heaume à cornes et couronne brisée, yeux rouges, ca
 pourpre, épée Eclipse dans le dos — idle, walk, run, combo ×3, coup lourd tournoyant,
 griffe abyssale, esquive, roulade, blessure, mort, interaction, victoire. Squelette :
 casque rouillé, orbites bleues, épée et bouclier — s'effondre en tas d'os et se
-relève. Les attaques sont animées par **poses clés** interpolées (8 à 14 frames) :
+relève. Les deux sont **riggés comme un corps** : bassin, colonne qui se plie
+(inclinaison, torsion, respiration), cou et tête (hochement, regard), épaule →
+coude → poignet et hanche → genou → cheville résolus en cinématique inverse
+(pieds plantés pendant les flexions, coudes qui suivent l'épée, genoux
+raccourcis de face), cape en tissu ondulant ; chaque partie est contourée sur
+son propre calque pour rester lisible. Marche et course en cycle de 8 frames
+(contact, passage, bras en balancier). Les attaques sont animées par **poses clés** interpolées (8 à 14 frames) :
 anticipation, taille, accompagnement et retour en garde, traînées calculées sur
 l'arc réellement balayé par la lame, images rémanentes, éclats, lame chargée,
 bond avec impact au sol, rotation complète sur soi-même (coup lourd).

@@ -4,6 +4,7 @@ import {
   addTrails, blade, CX, facingAngle, FH, FOOT_Y, FW, ghostBlade, polar, sampleKeys, shadedEllipse, shadedRect, sparkle, swoosh, withSpin,
   type Dir, type Key, type Pt, type TrailPose,
 } from './chibiKit';
+import { foreshorten, forwardVec, gait, ik2, joint, segment, type Chain } from './chibiRig';
 
 /**
  * Squelette de la crypte en chibi (~48 px) : crâne aux orbites bleues sous un
@@ -29,6 +30,18 @@ interface Pose extends TrailPose {
   sparks: number;
   /** Tremblement d'os (±1 px une frame sur deux). */
   shake: number;
+  /** Flexion des genoux (px) : le bassin descend, les pieds restent au sol. */
+  kneel: number;
+  /** Pieds A/B : avancée et levée (px). */
+  fa: number;
+  fb: number;
+  la: number;
+  lb: number;
+  /** Balancement des bras. */
+  swing: number;
+  /** Crâne : hochement (px) et inclinaison latérale (px). */
+  headTilt: number;
+  headTurn: number;
 }
 
 const C = {
@@ -45,7 +58,7 @@ const WOOD = { lo: C.w0, mid: C.w1, hi: C.w2 };
 const SWORD = { edge: C.st2, mid: C.st1, dark: C.st0, guard: C.r1, grip: C.w1 };
 
 function base(dir: Dir): Pose {
-  return { dir, bob: 0, lean: 0, step: 0, swordA: facingAngle(dir) + 0.9, handR: 5, smear: 0, smearFrom: 0, smearTo: 0, shieldUp: false, jaw: 0, glow: 0.6, collapse: 0, spin: 0, trail: 0, smearFade: 0, ghostA: [], sparks: 0, shake: 0 };
+  return { dir, bob: 0, lean: 0, step: 0, swordA: facingAngle(dir) + 0.9, handR: 5, smear: 0, smearFrom: 0, smearTo: 0, shieldUp: false, jaw: 0, glow: 0.6, collapse: 0, spin: 0, trail: 0, smearFade: 0, ghostA: [], sparks: 0, shake: 0, kneel: 0, fa: 0, fb: 0, la: 0, lb: 0, swing: 0, headTilt: 0, headTurn: 0 };
 }
 
 function eyes(c: PixelCanvas, e: PixelCanvas, xs: number[], y: number, glow: number): void {
@@ -87,40 +100,95 @@ function drawSkull(c: PixelCanvas, e: PixelCanvas, p: Pose, h: Pt): void {
   }
 }
 
-function drawRibs(c: PixelCanvas, p: Pose, top: number, lx: number): void {
-  const side = p.dir === 'side';
-  const x0 = CX + lx + (side ? -3 : -5);
-  const w = side ? 7 : 11;
-  c.rect(CX + lx, top, 1, 10, C.b1); // colonne
-  for (let i = 0; i < 4; i++) {
-    const y = top + 1 + i * 2;
-    const inset = i === 3 ? 2 : 0;
-    c.rect(x0 + inset, y, w - inset * 2, 1, i === 0 ? C.b3 : C.b2);
-    c.px(x0 + inset, y + 1, C.b0);
-    c.px(x0 + w - 1 - inset, y + 1, C.b0);
-  }
-  // Bassin.
-  shadedRect(c, CX + lx - (side ? 3 : 4), top + 9, side ? 6 : 9, 2, BONE);
-  // Ceinture de cuir en lambeaux.
-  c.rect(CX + lx - (side ? 3 : 5), top + 8, side ? 7 : 11, 1, C.w1);
+const THIGH = 5, SHIN = 5.6;
+const UPPER = 4.5, FORE = 4.5;
+/** Contour intérieur entre les os. */
+const INNER = 0x1a1410;
+
+interface Bones {
+  pelvis: Pt;
+  chest: Pt;
+  head: Pt;
+  top: number;
+  legA: Chain;
+  legB: Chain;
+  armW: Chain;
+  armS: Chain;
+  shieldAt: Pt;
 }
 
-function drawLegs(c: PixelCanvas, p: Pose, hip: number): void {
-  if (p.dir === 'side') {
-    for (const [dx, lift, cols] of [[-1 - p.step * 3, p.step < 0 ? 0 : Math.abs(p.step), BONE], [2 + p.step * 3, p.step > 0 ? 0 : Math.abs(p.step), BONE_HI]] as const) {
-      c.rect(CX + dx, hip, 2, FOOT_Y - hip - 1 - lift, cols.mid);
-      c.px(CX + dx, hip + 4, cols.hi);
-      shadedRect(c, CX + dx - 1, FOOT_Y - 2 - lift, 4, 2, cols);
-    }
-    return;
+/** Squelette au sens propre : bassin, colonne, crâne et membres en cinématique inverse. */
+function solve(p: Pose): Bones {
+  const F = facingAngle(p.dir);
+  const fwd = forwardVec(p.dir);
+  const side = p.dir === 'side';
+  const lx = Math.round(Math.cos(F) * p.lean);
+  const pelvis = { x: CX + Math.round(lx * 0.3), y: FOOT_Y - 11 + p.bob + p.kneel };
+  const top = pelvis.y - 9;
+  const chest = { x: CX + lx, y: top + 3 };
+  const head = { x: chest.x + (side ? 1 : 0) + Math.round(p.headTurn), y: top - 10 + Math.round(p.headTilt) + (p.lean < 0 ? 1 : 0) };
+  const hipA = side ? { x: pelvis.x + 1, y: pelvis.y } : { x: pelvis.x - 3, y: pelvis.y };
+  const hipB = side ? { x: pelvis.x - 1, y: pelvis.y } : { x: pelvis.x + 3, y: pelvis.y };
+  const fa = p.fa + p.step * 3, fb = p.fb - p.step;
+  const footA = { x: (side ? CX + 1 : CX - 3.5) + fwd.x * fa, y: FOOT_Y - 1 - p.la + fwd.y * fa };
+  const footB = { x: (side ? CX - 1 : CX + 3.5) + fwd.x * fb, y: FOOT_Y - 1 - p.lb + fwd.y * fb };
+  // De face/de dos, les genoux plient vers la caméra : écart latéral réduit.
+  const fs = (ch: Chain) => (side ? ch : foreshorten(ch, 0.3));
+  const legA = fs(ik2(hipA, footA, THIGH, SHIN, side ? { x: 1, y: 0.2 } : { x: -1, y: 0.3 }));
+  const legB = fs(ik2(hipB, footB, THIGH, SHIN, side ? { x: 1, y: 0.2 } : { x: 1, y: 0.3 }));
+  // Bras d'épée : gauche à l'écran de face, droite de dos, proche de profil.
+  const ws = p.dir === 'down' ? -1 : 1;
+  const shW = side ? { x: chest.x, y: top + 1 } : { x: chest.x + ws * 6, y: top + 1 };
+  const shS = side ? { x: chest.x - 2, y: top + 1 } : { x: chest.x - ws * 6, y: top + 1 };
+  const hand = polar(shW, p.swordA, p.handR);
+  const shieldAt: Pt = side
+    ? { x: chest.x + (p.shieldUp ? 6 : 2) + p.swing, y: chest.y + (p.shieldUp ? 0 : 3) }
+    : { x: chest.x - ws * (p.shieldUp ? 4 : 7), y: chest.y + (p.shieldUp ? 1 : 3) + p.swing * fwd.y * 2 };
+  const out = (sh: Pt) => (side ? -1 : Math.sign(sh.x - chest.x));
+  const armW = ik2(shW, hand, UPPER, FORE, { x: out(shW), y: 0.8 });
+  const armS = ik2(shS, shieldAt, UPPER, FORE, { x: out(shS), y: 0.8 });
+  return { pelvis, chest, head, top, legA, legB, armW, armS, shieldAt };
+}
+
+/** Colonne vertébrale, cage thoracique qui suit l'inclinaison, bassin et ceinture. */
+function drawTorso(c: PixelCanvas, p: Pose, b: Bones): void {
+  const side = p.dir === 'side';
+  const { pelvis, top } = b;
+  const spineAt = (y: number) => pelvis.x + ((b.chest.x - pelvis.x) * (pelvis.y - y)) / (pelvis.y - top);
+  // Vertèbres.
+  for (let y = top; y <= pelvis.y; y++) c.px(spineAt(y), y, y % 2 ? C.b1 : C.b2);
+  // Côtes : quatre arcs, plus courts vers le bas.
+  for (let i = 0; i < 4; i++) {
+    const y = top + 1 + i * 2;
+    const x = Math.round(spineAt(y));
+    const half = (side ? 3 : 5) - (i === 3 ? 2 : 0);
+    const x0 = side ? x - 2 : x - half;
+    const w = side ? half + 3 : half * 2 + 1;
+    c.rect(x0, y, w, 1, i === 0 ? C.b3 : C.b2);
+    c.px(x0, y + 1, C.b0);
+    c.px(x0 + w - 1, y + 1, C.b0);
   }
-  const l = FOOT_Y - hip - 1 + Math.max(0, p.step) - Math.max(0, -p.step);
-  const r = FOOT_Y - hip - 1 + Math.max(0, -p.step) - Math.max(0, p.step);
-  for (const [x, len] of [[CX - 4, l], [CX + 3, r]] as const) {
-    c.rect(x, hip, 2, len - 1, C.b2);
-    c.px(x, hip + 4, C.b3);
-    shadedRect(c, x - 1, hip + len - 2, 4, 2, BONE);
-  }
+  // Bassin et ceinture de cuir en lambeaux.
+  shadedRect(c, pelvis.x - (side ? 3 : 4), pelvis.y - 1, side ? 6 : 9, 2, BONE);
+  c.rect(pelvis.x - (side ? 3 : 5), pelvis.y - 2, side ? 7 : 11, 1, C.w1);
+  c.px(pelvis.x + (side ? -3 : 3), pelvis.y, C.w1);
+}
+
+function drawBoneLeg(c: PixelCanvas, leg: Chain, near: boolean): void {
+  const cols = near ? BONE_HI : BONE;
+  segment(c, leg.root, leg.mid, 2, cols); // fémur
+  segment(c, leg.mid, leg.end, 2, cols); // tibia
+  joint(c, leg.mid, 1, BONE_HI); // rotule
+  shadedRect(c, Math.round(leg.end.x) - 1, Math.round(leg.end.y) - 1, 4, 2, cols); // os du pied
+}
+
+function drawBoneArm(c: PixelCanvas, arm: Chain, near: boolean): void {
+  const cols = near ? BONE_HI : BONE;
+  c.line(arm.root.x, arm.root.y, arm.mid.x, arm.mid.y, cols.mid, 2); // humérus
+  c.line(arm.mid.x, arm.mid.y, arm.end.x, arm.end.y, cols.hi, 1); // radius et cubitus
+  joint(c, arm.mid, 1, BONE_HI);
+  joint(c, arm.root, 1, BONE_HI); // tête d'épaule
+  c.rect(Math.round(arm.end.x) - 1, Math.round(arm.end.y) - 1, 2, 2, C.b3); // phalanges
 }
 
 function drawShield(c: PixelCanvas, at: Pt, front: boolean): void {
@@ -132,37 +200,41 @@ function drawShield(c: PixelCanvas, at: Pt, front: boolean): void {
 }
 
 function drawSkeleton(p: Pose, c: PixelCanvas, e: PixelCanvas): void {
-  const F = facingAngle(p.dir);
-  const lx = Math.round(Math.cos(F) * p.lean);
-  const top = FOOT_Y - 19 + p.bob;
-  const hip = top + 10;
-  const head = { x: CX + lx + (p.dir === 'side' ? 1 : 0), y: FOOT_Y - 29 + p.bob + Math.max(0, p.lean < 0 ? 1 : 0) };
-  const chest = { x: CX + lx, y: top + 3 };
-  const hand = polar(chest, p.swordA, p.handR);
-  // Bras d'arme et bras de bouclier selon la direction.
-  const swordSide = p.dir === 'down' ? -1 : 1;
-  const shieldAt: Pt =
-    p.dir === 'side'
-      ? { x: chest.x + (p.shieldUp ? 6 : 2), y: chest.y + (p.shieldUp ? 0 : 3) }
-      : { x: chest.x - swordSide * (p.shieldUp ? 4 : 7), y: chest.y + (p.shieldUp ? 1 : 3) };
-  const swordBehind = p.dir === 'up' ? Math.sin(p.swordA) < 0.4 : p.dir === 'side' ? false : Math.sin(p.swordA) < -0.88;
-  const shieldBehind = p.dir === 'up' || (p.dir === 'side' && !p.shieldUp);
+  const b = solve(p);
+  const side = p.dir === 'side';
+  const hand = b.armW.end;
+  const pivot = b.armW.root;
+  const swordBehind = p.dir === 'up' ? Math.sin(p.swordA) < 0.4 : side ? false : Math.sin(p.swordA) < -0.88;
+  const shieldBehind = p.dir === 'up' || (side && !p.shieldUp);
+  /** Chaque os est contouré sur son calque pour rester lisible. */
+  const part = (fn: (pc: PixelCanvas) => void) => {
+    const pc = new PixelCanvas(FW, FH);
+    fn(pc);
+    pc.outline(INNER);
+    c.blit(pc, 0, 0);
+  };
 
-  for (const ga of p.ghostA) ghostBlade(c, e, polar(chest, ga, p.handR), ga, 15, 0x3a8ad0, 110);
-  if (shieldBehind) drawShield(c, shieldAt, p.dir === 'up');
+  for (const ga of p.ghostA) ghostBlade(c, e, polar(pivot, ga, p.handR), ga, 15, 0x3a8ad0, 110);
+  if (shieldBehind) {
+    part((pc) => drawBoneArm(pc, b.armS, false));
+    part((pc) => drawShield(pc, b.shieldAt, p.dir === 'up'));
+  }
   if (swordBehind) blade(c, e, hand, p.swordA, 15, SWORD);
-  drawLegs(c, p, hip);
-  drawRibs(c, p, top, lx);
-  drawSkull(c, e, p, head);
-  // Bras (os fins).
-  const shoulders = p.dir === 'side' ? [{ x: chest.x, y: top + 1 }] : [{ x: chest.x + swordSide * 6, y: top + 1 }, { x: chest.x - swordSide * 6, y: top + 1 }];
-  c.line(shoulders[0].x, shoulders[0].y, hand.x, hand.y, C.b2, 1);
-  c.rect(Math.round(hand.x) - 1, Math.round(hand.y) - 1, 2, 2, C.b3);
-  if (shoulders[1]) c.line(shoulders[1].x, shoulders[1].y, shieldAt.x, shieldAt.y, C.b1, 1);
-  if (!shieldBehind) drawShield(c, shieldAt, p.dir !== 'side' || p.shieldUp);
+  if (side) part((pc) => drawBoneLeg(pc, b.legB, false));
+  else {
+    part((pc) => drawBoneLeg(pc, b.legB, true));
+  }
+  part((pc) => drawBoneLeg(pc, b.legA, true));
+  part((pc) => drawTorso(pc, p, b));
+  part((pc) => drawSkull(pc, e, p, b.head));
+  part((pc) => drawBoneArm(pc, b.armW, true));
+  if (!shieldBehind) {
+    part((pc) => drawBoneArm(pc, b.armS, !side));
+    part((pc) => drawShield(pc, b.shieldAt, !side || p.shieldUp));
+  }
   if (!swordBehind) blade(c, e, hand, p.swordA, 15, SWORD);
   c.outline(C.ink);
-  if (p.smear > 0) swoosh(c, e, chest, p.smearFrom, p.smearTo, p.handR + 6, p.handR + 16, [0x2a6ab0, 0x58c8ff, 0xd8f4ff], p.smearFade);
+  if (p.smear > 0) swoosh(c, e, pivot, p.smearFrom, p.smearTo, p.handR + 5, p.handR + 16, [0x2a6ab0, 0x58c8ff, 0xd8f4ff], p.smearFade);
   if (p.sparks > 0) sparkle(c, e, polar(hand, p.swordA, 15), p.sparks > 0.6 ? 3 : 2, C.eyeHi, C.eye);
 }
 
@@ -190,7 +262,7 @@ type Gen = (dir: Dir) => Partial<Pose>[];
 
 /** Le coup part du côté du bras d'arme (gauche de face, droite de dos, d'en haut derrière de profil). */
 const sideSign = (dir: Dir) => (dir === 'side' ? -1 : 1);
-const PX_FIELDS = ['bob', 'lean', 'step', 'jaw', 'shake'] as const;
+const PX_FIELDS = ['bob', 'lean', 'jaw', 'shake', 'kneel', 'fa', 'fb', 'la', 'lb', 'headTilt', 'headTurn'] as const;
 
 function keyed(dir: Dir, n: number, keys: Key<Pose>[]): Pose[] {
   return sampleKeys(base(dir), keys, n).map((f) => {
@@ -205,10 +277,11 @@ const windup: Gen = (dir) => {
   const F = facingAngle(dir);
   const s = sideSign(dir);
   return keyed(dir, 6, [
-    { t: 0, p: { swordA: F + s * 1.2, handR: 5 } },
-    { t: 0.35, ease: 'out', p: { swordA: F + s * 2.3, handR: 4, lean: -1, jaw: 1, glow: 1 } },
-    { t: 0.7, p: { swordA: F + s * 2.5, handR: 4, lean: -2, bob: 1, jaw: 2, shake: 1 } },
-    { t: 1, p: { swordA: F + s * 2.6, shake: 1, jaw: 1 } },
+    { t: 0, p: { swordA: F + s * 1.2, handR: 6 } },
+    // Le squelette se ramasse : genoux pliés, pied arrière reculé, crâne baissé vers sa cible.
+    { t: 0.35, ease: 'out', p: { swordA: F + s * 2.3, handR: 6, lean: -1, kneel: 2, fa: 1, fb: -2, jaw: 1, glow: 1, headTilt: 1 } },
+    { t: 0.7, p: { swordA: F + s * 2.5, handR: 7, lean: -2, kneel: 3, jaw: 2, shake: 1, shieldUp: true } },
+    { t: 1, p: { swordA: F + s * 2.6, shake: 1, jaw: 1, headTurn: 1 } },
   ]);
 };
 
@@ -217,11 +290,12 @@ const strike: Gen = (dir) => {
   const F = facingAngle(dir);
   const s = sideSign(dir);
   return keyed(dir, 6, [
-    { t: 0, p: { swordA: F + s * 2.6, handR: 4, lean: -1, glow: 1, jaw: 2 } },
-    { t: 0.25, ease: 'in', p: { swordA: F + s * 0.6, handR: 7, lean: 2, step: 1, trail: 1 } },
-    { t: 0.45, ease: 'out', p: { swordA: F - s * 1.1, handR: 8, lean: 3, trail: 1, sparks: 1 } },
-    { t: 0.7, p: { swordA: F - s * 1.4, handR: 7, lean: 2, trail: 0.4, sparks: 0, jaw: 1 } },
-    { t: 1, p: { swordA: F - s * 1.3, handR: 6, lean: 1, trail: 0 } },
+    { t: 0, p: { swordA: F + s * 2.6, handR: 7, lean: -1, kneel: 3, fa: 1, fb: -2, glow: 1, jaw: 2, shieldUp: true } },
+    // Fente : le pied d'appel avance, le buste plonge, le bouclier recule en contrepoids.
+    { t: 0.25, ease: 'in', p: { swordA: F + s * 0.6, handR: 9, lean: 2, kneel: 2, step: 1, trail: 1, shieldUp: false, swing: -1 } },
+    { t: 0.45, ease: 'out', p: { swordA: F - s * 1.1, handR: 9, lean: 3, kneel: 3, trail: 1, sparks: 1, headTilt: 1 } },
+    { t: 0.7, p: { swordA: F - s * 1.4, handR: 8, lean: 2, trail: 0.4, sparks: 0, jaw: 1 } },
+    { t: 1, p: { swordA: F - s * 1.3, handR: 7, lean: 1, kneel: 1, trail: 0, headTilt: 0 } },
   ]);
 };
 
@@ -230,29 +304,42 @@ const recover: Gen = (dir) => {
   const F = facingAngle(dir);
   const s = sideSign(dir);
   return keyed(dir, 5, [
-    { t: 0, p: { swordA: F - s * 1.3, handR: 6, lean: 1, step: 1 } },
-    { t: 0.3, p: { swordA: F - s * 1.0, handR: 5, lean: 0, bob: 1, jaw: 1, step: 0 } },
-    { t: 0.6, p: { swordA: F + 0.5, bob: 0, jaw: 0, lean: -1 } },
-    { t: 1, p: { swordA: F + 0.9, handR: 5, lean: 0 } },
+    { t: 0, p: { swordA: F - s * 1.3, handR: 7, lean: 1, kneel: 1, step: 1 } },
+    // L'élan retombe : la lame traîne, le crâne vacille d'un côté puis de l'autre.
+    { t: 0.3, p: { swordA: F - s * 1.0, handR: 7, lean: 0, kneel: 2, jaw: 1, step: 0.5, headTurn: 1, headTilt: 1 } },
+    { t: 0.6, p: { swordA: F + 0.5, kneel: 1, jaw: 0, lean: -1, headTurn: -1, step: 0 } },
+    { t: 1, p: { swordA: F + 0.9, handR: 6, lean: 0, kneel: 0, headTurn: 0, headTilt: 0 } },
   ]);
 };
 
 const CLIPS: { name: string; fps: number; loop: boolean; gen: Gen; events?: Record<number, string> }[] = [
-  { name: 'idle', fps: 4, loop: true, gen: () => [{}, { bob: 1, glow: 0.8 }, { bob: 1, jaw: 1 }, {}] },
   {
-    name: 'walk', fps: 7, loop: true,
-    gen: () => [{ step: 1 }, { bob: 1, jaw: 1 }, { step: -1 }, { bob: 1 }],
-    events: { 0: 'rattle', 2: 'rattle' },
+    // Au repos : le squelette oscille, la mâchoire claque, le crâne penche.
+    name: 'idle', fps: 5, loop: true,
+    gen: () => [{}, { kneel: 1, glow: 0.8 }, { kneel: 1, jaw: 1, headTurn: 1 }, { headTurn: 1 }, { jaw: 1 }, { kneel: 1, headTilt: 1 }],
+  },
+  {
+    // Démarche traînante : foulée courte, buste voûté, bras ballants, crâne qui ballotte.
+    name: 'walk', fps: 9, loop: true,
+    gen: () => gait(8, false).map((g, i) => ({
+      fa: Math.round(g.fa * 0.8), fb: Math.round(g.fb * 0.8), la: g.la, lb: g.lb, bob: g.bob, swing: Math.round(g.swing),
+      lean: 1, headTurn: i % 4 === 1 ? 1 : i % 4 === 3 ? -1 : 0, jaw: i % 4 === 2 ? 1 : 0,
+    })),
+    events: { 0: 'rattle', 4: 'rattle' },
   },
   { name: 'windup', fps: 10, loop: false, gen: windup },
   { name: 'attack', fps: 18, loop: false, gen: strike },
   { name: 'recover', fps: 9, loop: false, gen: recover },
-  { name: 'block', fps: 8, loop: false, gen: () => [{ shieldUp: true, lean: -1 }, { shieldUp: true, bob: 1 }] },
-  { name: 'hurt', fps: 10, loop: false, gen: () => [{ lean: -2, jaw: 2, glow: 1, bob: 1 }, { lean: -1, jaw: 1 }] },
+  { name: 'block', fps: 8, loop: false, gen: () => [{ shieldUp: true, lean: -1, kneel: 1, fb: -2 }, { shieldUp: true, kneel: 2, fb: -2, headTilt: 1 }] },
+  {
+    // Blessure : le crâne part en arrière, les genoux plient, les bras s'écartent.
+    name: 'hurt', fps: 10, loop: false,
+    gen: () => [{ lean: -2, jaw: 2, glow: 1, kneel: 1, headTilt: -1, swing: 1 }, { lean: -2, kneel: 2, jaw: 1, headTurn: 1 }, { lean: -1, kneel: 1 }],
+  },
 ];
 
 const DIRS: Dir[] = ['down', 'up', 'side'];
-const DEATH: Partial<Pose>[] = [{ lean: -2, jaw: 2, glow: 1 }, { collapse: 0.3, glow: 0.8 }, { collapse: 0.6, glow: 0.5 }, { collapse: 0.85, glow: 0.2 }, { collapse: 1, glow: 0 }];
+const DEATH: Partial<Pose>[] = [{ lean: -2, jaw: 2, glow: 1, headTilt: -1 }, { kneel: 4, lean: 1, jaw: 2, glow: 0.9, headTilt: 2 }, { collapse: 0.3, glow: 0.8 }, { collapse: 0.6, glow: 0.5 }, { collapse: 0.85, glow: 0.2 }, { collapse: 1, glow: 0 }];
 
 export const SKELETON_CLIPS: ClipDef<Pose>[] = [
   ...CLIPS.flatMap((c) =>

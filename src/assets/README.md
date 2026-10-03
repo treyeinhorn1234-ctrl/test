@@ -8,6 +8,7 @@ Tous les visuels du prototype sont **générés procéduralement** en pixel art
 | `pixel/PixelCanvas.ts` | Toile pixel art : primitives, contour automatique, conversion en texture « nearest » |
 | `palette.ts` | Palette maîtresse (armure, cape, énergie abyssale, os, pierre, feu…) |
 | `sprites/chibi/chibiKit.ts` | Outils chibi : frames 64×64, directions, volumes ombrés, lame d'épée, traînées de taille, rotation, poses clés (`sampleKeys`), traînées automatiques (`addTrails`), rémanences, éclats, impact au sol |
+| `sprites/chibi/chibiRig.ts` | Rig 2D : cinématique inverse à deux os (`ik2`), raccourci de face (`foreshorten`), segments et rotules ombrés, cycle de marche (`gait`) |
 | `sprites/chibi/varynChibi.ts` | Varyn chibi, 4 directions (`clip@down`, `clip@up`, `clip@side`) — idle, walk, run, attack1-3, heavy, cast, dodge, roll, hurt, death, interact, victory |
 | `sprites/chibi/skeletonChibi.ts` | Squelette chibi, 4 directions — idle, walk, windup, attack, recover, block, hurt, death, rise |
 | `sprites/propSprites.ts` | Statues des rois, flammes, bougies, ossements, bannières, cristal, orbe de sang |
