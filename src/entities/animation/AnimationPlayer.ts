@@ -13,7 +13,7 @@ export class AnimationPlayer {
   clip: ClipInfo;
   /** Nom logique du clip (sans suffixe de direction). */
   baseName: string;
-  private _back = false;
+  private _variant = 'down';
   private time = 0;
   frame = 0;
   speed = 1;
@@ -21,18 +21,21 @@ export class AnimationPlayer {
   private pendingEvents: string[] = [];
 
   constructor(private readonly sheet: ClipSource, initial: string) {
-    this.clip = this.get(initial);
+    this.clip = this.get(this.resolve(initial));
     this.baseName = initial;
   }
 
-  /** Vue de dos : utilise la variante « @back » d'un clip quand elle existe. */
-  get back(): boolean {
-    return this._back;
+  /**
+   * Variante directionnelle (« down », « up », « side »…) : un clip `nom@variante`
+   * est préféré au clip `nom` quand il existe.
+   */
+  get variant(): string {
+    return this._variant;
   }
 
-  set back(v: boolean) {
-    if (v === this._back) return;
-    this._back = v;
+  set variant(v: string) {
+    if (v === this._variant) return;
+    this._variant = v;
     const resolved = this.resolve(this.baseName);
     if (resolved !== this.clip.name) {
       // Change de variante sans perdre la progression.
@@ -42,8 +45,10 @@ export class AnimationPlayer {
   }
 
   private resolve(name: string): string {
-    if (this._back && this.sheet.clips.has(`${name}@back`)) return `${name}@back`;
-    return name;
+    const v = `${name}@${this._variant}`;
+    if (this.sheet.clips.has(v)) return v;
+    if (this.sheet.clips.has(name)) return name;
+    return `${name}@down`;
   }
 
   private get(name: string): ClipInfo {
@@ -53,7 +58,7 @@ export class AnimationPlayer {
   }
 
   has(name: string): boolean {
-    return this.sheet.clips.has(name);
+    return this.sheet.clips.has(this.resolve(name));
   }
 
   /** Lance un clip. `restart` force le redémarrage s'il est déjà joué. */
@@ -70,7 +75,7 @@ export class AnimationPlayer {
 
   /** Joue un clip en l'étirant pour qu'il dure exactement `duration` secondes. */
   playFor(name: string, duration: number): void {
-    const c = this.get(name);
+    const c = this.get(this.resolve(name));
     this.play(name, true, c.count / c.fps / Math.max(0.01, duration));
   }
 

@@ -36,8 +36,8 @@ void main() {
   vAlpha = aAlpha;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mvPosition;
-  // Taille en texels de décor (2 pixels de rendu par texel).
-  gl_PointSize = aSize * 2.0;
+  // Taille en texels de décor (1 pixel de rendu par texel).
+  gl_PointSize = aSize;
   #include <fog_vertex>
 }
 `;

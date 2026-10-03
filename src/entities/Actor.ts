@@ -3,8 +3,7 @@ import type { SpriteUniforms } from '../rendering/SpriteMaterial';
 import type { AnimationPlayer } from './animation/AnimationPlayer';
 
 /**
- * Représentation visuelle d'une entité : planche pré-calculée (SpriteActor)
- * ou rendu en direct d'un personnage riggé en 8 directions (LiveSpriteActor).
+ * Représentation visuelle d'une entité (implémentée par SpriteActor).
  */
 export interface Actor {
   readonly root: THREE.Group;

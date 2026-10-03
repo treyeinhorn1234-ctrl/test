@@ -22,7 +22,8 @@ export function tiltSpriteNormals(geo: THREE.BufferGeometry): void {
 /**
  * Représentation visuelle d'un personnage : panneau vertical orienté vers la
  * caméra, pivot aux pieds, animé depuis une planche de sprites, avec ombre
- * portée en pastille. Le miroir horizontal gère l'orientation gauche/droite.
+ * portée en pastille. Quatre directions : bas, haut et côté (le miroir
+ * horizontal donne la gauche).
  */
 export class SpriteActor implements Actor {
   readonly root = new THREE.Group();
@@ -82,12 +83,19 @@ export class SpriteActor implements Actor {
 
   private ghostTex: THREE.Texture[] = [];
 
+  /**
+   * Choisit la direction parmi bas / haut / côté (style RPG Maker), avec une
+   * hystérésis aux diagonales pour éviter le scintillement.
+   */
   setFacing(screenX: number, screenUp: number): void {
-    if (screenX > 0.12) this.setScreenFacing(true);
-    else if (screenX < -0.12) this.setScreenFacing(false);
-    // Vue de dos quand le personnage s'éloigne de la caméra (avec hystérésis).
-    if (screenUp > 0.5) this.anim.back = true;
-    else if (screenUp < 0.25) this.anim.back = false;
+    const ax = Math.abs(screenX), ay = Math.abs(screenUp);
+    const cur = this.anim.variant;
+    let dir = cur;
+    if (ay > ax * (cur === 'side' ? 1.25 : 0.8)) dir = screenUp > 0 ? 'up' : 'down';
+    else if (ax > 0.05) dir = 'side';
+    this.anim.variant = dir;
+    if (dir === 'side') this.setScreenFacing(screenX > 0);
+    else this.flipX = false;
   }
 
   ghostTexture(slot: number): THREE.Texture {

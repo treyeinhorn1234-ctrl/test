@@ -1,6 +1,6 @@
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
-import { varynPortraitSource } from '../assets/character/varynCharacter';
+import { varynPortraitSource } from '../assets/sprites/chibi/varynChibi';
 
 /**
  * Éléments graphiques de l'interface générés en pixel art : cadres 9-slice,

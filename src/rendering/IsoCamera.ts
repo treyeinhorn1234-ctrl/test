@@ -3,11 +3,8 @@ import { clamp, damp } from '../utils/math';
 
 /** Densité des décors : 16 texels par unité monde (1 tuile = 2 unités = 32 px). */
 export const PIXELS_PER_UNIT = 16;
-/**
- * Densité du rendu : 32 pixels de jeu par unité monde, pour afficher les
- * personnages (dessinés à 32 px/unité) avec tout leur détail.
- */
-export const CAMERA_PPU = 32;
+/** Densité du rendu : décor et personnages chibi partagent 16 px par unité. */
+export const CAMERA_PPU = 16;
 export const CAMERA_YAW = Math.PI / 4;
 export const CAMERA_PITCH = THREE.MathUtils.degToRad(38);
 const FOV = 26;
@@ -31,8 +28,8 @@ export class IsoCamera {
   /** Direction « haut de l'écran » projetée au sol (pour les déplacements). */
   readonly groundUp: THREE.Vector3;
   readonly groundRight: THREE.Vector3;
-  zoom = 0.85;
-  private targetZoom = 0.85;
+  zoom = 1;
+  private targetZoom = 1;
   /** Multiplicateur de cadrage imposé par le jeu (boss, cinématiques). */
   private framing = 1;
   private targetFraming = 1;
@@ -63,7 +60,7 @@ export class IsoCamera {
   }
 
   addZoomInput(steps: number): void {
-    this.targetZoom = clamp(this.targetZoom - steps * 0.08, 0.65, 1.3);
+    this.targetZoom = clamp(this.targetZoom - steps * 0.08, 0.75, 1.5);
   }
 
   setFraming(f: number): void {

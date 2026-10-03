@@ -54,14 +54,14 @@ statues des rois, sarcophages, tombeau brisé de Varyn, autel abyssal, grande po
 scellée, bannières profanées, torches vacillantes (lumières dynamiques), brume
 rampante, poussière, braises, ombres pixelisées de la lune, objets examinables.
 
-**Personnages** : Varyn est construit à partir de son sprite dessiné, découpé en
-21 calques (`src/assets/character/varyn/` : body, head, arms, legs, cape, weapon +
-`rig.json`) par `tools/build_varyn_parts.py`, avec pixels cachés reconstitués et
-capuchons d'articulation. Squelette 2D complet (bassin, buste, cou, tête, épaulières,
-épaule/coude/poignet, hanche/genou/cheville, épée, capes avant/arrière), rendu en
-direct dans **8 directions isométriques** (vues S, SE, E, NE, N + miroirs ; vues de
-dos avec heaume arrière et cape drapée). Rotations au plus proche voisin, aucun
-lissage. Visualiseur : `/?debug=sprites&clip=walk`.
+**Personnages** : sprites **chibi façon RPG Maker** (grosse tête, ~48 px de haut
+dans des frames 64×64, même densité que le décor : 16 px par unité), dessinés
+procéduralement au pixel près. **4 directions** (face, dos, profil + miroir) et
+marche en 4 temps. Varyn : heaume à cornes et couronne brisée, yeux rouges, cape
+pourpre, épée Eclipse dans le dos — idle, walk, run, combo ×3, coup lourd tournoyant,
+griffe abyssale, esquive, roulade, blessure, mort, interaction, victoire. Squelette :
+casque rouillé, orbites bleues, épée et bouclier — s'effondre en tas d'os et se
+relève. Visualiseur : `/?debug=sprites` (`&who=varyn`, `&zoom=4`).
 
 **Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,

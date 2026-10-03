@@ -5,7 +5,6 @@ import './ui/styles/main.css';
 import { Game } from './core/Game';
 import { installUiArt } from './ui/pixelArt';
 import { showSpriteViewer } from './dev/spriteViewer';
-import { loadImages } from './assets/images/registry';
 
 /**
  * ASHEN CROWN — point d'entrée.
@@ -19,8 +18,6 @@ function updateUiScale(): void {
   const u = Math.max(2, Math.min(4, Math.floor(window.innerHeight / 400)));
   document.documentElement.style.setProperty('--u', `${u}px`);
 }
-
-await loadImages();
 
 if (params.get('debug') === 'sprites') {
   showSpriteViewer(app);

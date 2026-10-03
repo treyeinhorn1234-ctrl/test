@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PAL } from '../assets/palette';
-import { getSkeletonSheet } from '../assets/sprites/skeletonSprite';
+import { getSkeletonSheet } from '../assets/sprites/chibi/skeletonChibi';
 import type { DamageResult, HitInfo } from '../combat/Damage';
 import { createStats } from '../combat/Stats';
 import type { GameContext } from '../core/GameContext';
@@ -50,13 +50,13 @@ export class Skeleton extends Enemy {
         magicResist: 0,
         critChance: 0.03,
       }),
-      new SpriteActor(getSkeletonSheet(), 'rise', 0.6, 0.8),
+      new SpriteActor(getSkeletonSheet(), 'rise', 0.5, 0.8),
     );
     this.aggression = Math.min(1.4, 1 + (level - 1) * 0.06);
     this.position.copy(position);
     this.home.copy(position);
-    this.centerHeight = 1.5;
-    this.barHeight = 3.7;
+    this.centerHeight = 1.0;
+    this.barHeight = 2.9;
     this.strafeSign = Math.random() < 0.5 ? -1 : 1;
     this.fsm = new StateMachine<Skeleton, SState>(this, {
       rise: {
