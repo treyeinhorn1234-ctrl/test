@@ -56,9 +56,19 @@ Fichiers :
   (rares), reliques (points d'amélioration), vases destructibles, cloches de bronze.
 - **Progression** : points de contrôle, réapparition, score et combo, écran de fin de
   niveau, autel d'amélioration (vie, force, esprit, flux, vent), meilleur score sauvegardé.
-- **Rendu** : parallaxe sur 4 à 5 couches, brume, météo (feuilles et lucioles, braises,
-  neige, poussière d'or), halos lumineux additifs, particules, traînée du dash,
-  flash d'impact, arrêt sur image, tremblement de caméra.
+- **Direction artistique** : lavis à l'encre (shan shui) décliné par niveau — montagnes
+  peintes au pinceau avec dégradé tramé vers la brume, ciel en papier de riz, nuages
+  découpés, terrain de pierres moussues (ou briques laquées, roche enneigée, dalles d'or),
+  pins tordus, bosquets de bambous, pavillons et sanctuaires aux toits de tuiles,
+  ponts de pierre en arche, escaliers, cascades.
+- **Animations et effets** : végétation et lanternes qui ondulent au vent (décalage par
+  rangée de pixels dans un shader, rafales), nuages et vols d'oiseaux qui dérivent,
+  rayons de lumière, deux bancs de brume, eau à reflets animés, écume et embruns au
+  pied des cascades, pétales qui virevoltent, météo par niveau.
+- **Post-traitement WebGL** : ondes de choc (vague de Qi, impacts, boss), aberration
+  chromatique quand on est touché, bloom, étalonnage par niveau, vignette, grain,
+  désaturation à la mort ; plus halos additifs, particules, traînée du dash, arrêt sur
+  image et tremblement de caméra.
 - **Audio** : effets et musique pentatonique générés par la Web Audio API.
 
 ## Crédits
