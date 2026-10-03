@@ -8,8 +8,9 @@ Tous les visuels du prototype sont **générés procéduralement** en pixel art
 | `pixel/PixelCanvas.ts` | Toile pixel art : primitives, contour automatique, conversion en texture « nearest » |
 | `palette.ts` | Palette maîtresse (armure, cape, énergie abyssale, os, pierre, feu…) |
 | `sprites/frontRig.ts` | Outils : plaques d'armure ombrées et gravées, volutes, gemmes, flammes animées, traînées, rotation, poses clés |
-| `sprites/varynSprite.ts` | Varyn 128×112, vue de face 3/4 + dos — idle, walk, run, 3 attaques de combo, heavy, dodge, roll, hurt, death, cast, interact, victory |
-| `sprites/skeletonSprite.ts` | Squelette gardien 96×88, face + dos — idle, walk, windup, attack, recover, block, hurt, death, rise |
+| `images/varyn.png` | Sprite dessiné de Varyn (106×121, grille native récupérée depuis la référence ×6) |
+| `sprites/varynSprite.ts` | Rig de calques sur l'image : cape, jambes, buste, épée pivotante — idle, walk, run, 3 attaques, heavy, dodge, roll, hurt, death, cast, interact, victory (`?debug=sprites&rig=1` montre les calques) |
+| `sprites/skeletonSprite.ts` | Squelette gardien 192×176 (rig ×2), face + dos — idle, walk, windup, attack, recover, block, hurt, death, rise |
 | `sprites/propSprites.ts` | Statues des rois, flammes, bougies, ossements, bannières, cristal, orbe de sang |
 | `textures/cryptTextures.ts` | Dalles, briques, piliers, sarcophages, porte scellée (couleur + émission) |
 

@@ -1,4 +1,4 @@
-import { getVarynSheet } from '../assets/sprites/varynSprite';
+import { debugRigCanvas, getVarynSheet } from '../assets/sprites/varynSprite';
 import { getSkeletonSheet } from '../assets/sprites/skeletonSprite';
 import type { SpriteSheet } from '../entities/animation/SpriteSheet';
 
@@ -12,6 +12,12 @@ export function showSpriteViewer(root: HTMLElement): void {
   root.innerHTML = '';
   root.style.cssText = 'background:#2a2433;padding:12px;overflow:auto;height:100vh;box-sizing:border-box';
   const sheets: [string, SpriteSheet][] = [['varyn', getVarynSheet()], ['skeleton', getSkeletonSheet()]];
+  if (q.get('rig')) {
+    const cv = debugRigCanvas();
+    cv.style.cssText = `image-rendering:pixelated;width:${cv.width * 7}px;background:#c8c4cc`;
+    root.appendChild(cv);
+    return;
+  }
   const clipName = q.get('clip');
   if (clipName) {
     const sheet = sheets.find(([n]) => n === (q.get('who') ?? 'varyn'))![1];

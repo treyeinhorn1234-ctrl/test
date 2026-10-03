@@ -63,10 +63,10 @@ export class Player extends Entity {
         physAtk: 14, magAtk: 16, armor: 0.1, magicResist: 0.1,
         critChance: 0.12, critMult: 1.8,
       }),
-      new SpriteActor(getVarynSheet(), 'idle', 0.9, 1.1, 0.95),
+      new SpriteActor(getVarynSheet(), 'idle', 0.9, 1.1, 1.6, 1.1),
     );
     this.mass = 3;
-    this.centerHeight = 1.7;
+    this.centerHeight = 1.8;
     this.light = new THREE.PointLight(0xd8c8ff, 14, 11, 1.2);
     this.fsm = new StateMachine<Player, PState>(this, {
       idle: { enter: (p) => p.actor.anim.play('idle'), update: (p, dt) => p.updateLocomotion(dt) },

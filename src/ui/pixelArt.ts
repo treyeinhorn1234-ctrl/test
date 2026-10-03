@@ -1,6 +1,6 @@
 import { PAL } from '../assets/palette';
 import { PixelCanvas } from '../assets/pixel/PixelCanvas';
-import { getVarynSheet } from '../assets/sprites/varynSprite';
+import { getVarynSheet, VARYN_PORTRAIT_RECT } from '../assets/sprites/varynSprite';
 
 /**
  * Éléments graphiques de l'interface générés en pixel art : cadres 9-slice,
@@ -47,7 +47,8 @@ export function portrait(): string {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 40, 40);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sheet.debugCanvas, 43, 22, 40, 40, 0, 0, 40, 40);
+  const r = VARYN_PORTRAIT_RECT;
+  ctx.drawImage(sheet.debugCanvas, r.x, r.y, r.w, r.h, 0, 0, 40, 40);
   return c.toDataURL();
 }
 

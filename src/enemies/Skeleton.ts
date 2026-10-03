@@ -55,8 +55,8 @@ export class Skeleton extends Enemy {
     this.aggression = Math.min(1.4, 1 + (level - 1) * 0.06);
     this.position.copy(position);
     this.home.copy(position);
-    this.centerHeight = 1.4;
-    this.barHeight = 3.9;
+    this.centerHeight = 1.5;
+    this.barHeight = 3.7;
     this.strafeSign = Math.random() < 0.5 ? -1 : 1;
     this.fsm = new StateMachine<Skeleton, SState>(this, {
       rise: {

@@ -31,6 +31,8 @@ export interface SpriteSheet {
   debugCanvas: HTMLCanvasElement;
   /** Orientation native des frames (true = le personnage regarde à gauche). */
   facesLeft: boolean;
+  /** Densité du sprite (pixels par unité monde). */
+  pixelsPerUnit: number;
 }
 
 export interface ClipDef<P> {
@@ -49,6 +51,7 @@ export interface SheetSpec<P> {
   /** Couleur de contour automatique (null : le générateur gère lui-même le contour). */
   outline: number | null;
   facesLeft?: boolean;
+  pixelsPerUnit?: number;
   clips: ClipDef<P>[];
   draw(pose: P, color: PixelCanvas, emissive: PixelCanvas, frameIndex: number, row: number): void;
 }
@@ -99,6 +102,7 @@ export function buildSpriteSheet<P>(spec: SheetSpec<P>): SpriteSheet {
     clips,
     debugCanvas: color.toCanvas(),
     facesLeft: spec.facesLeft ?? false,
+    pixelsPerUnit: spec.pixelsPerUnit ?? 16,
   };
 }
 

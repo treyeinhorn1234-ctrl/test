@@ -54,10 +54,12 @@ statues des rois, sarcophages, tombeau brisé de Varyn, autel abyssal, grande po
 scellée, bannières profanées, torches vacillantes (lumières dynamiques), brume
 rampante, poussière, braises, ombres pixelisées de la lune, objets examinables.
 
-**Personnages** : Varyn et les squelettes sont dessinés en vue de face 3/4 (et de dos)
-dans un style pixel art détaillé : plaques d'armure biseautées et gravées, épaulières
-à pointes, couronne de cornes, flammes abyssales animées (bleues spectrales pour les
-squelettes). Animations à poses clés interpolées (8 à 10 images), roulade.
+**Personnages** : Varyn utilise le sprite dessiné `src/assets/images/varyn.png`
+(106×121 px, vue isométrique 3/4). Il est animé par un rig de calques découpés
+automatiquement dans l'image : cape qui ondule, buste qui respire, jambes, épée
+Eclipse extraite et pivotée pour les attaques, roulade. Les squelettes sont dessinés
+procéduralement à la même densité (32 px par unité), avec flammes spectrales.
+Rendu à 32 px par unité monde pour garder tout le détail des personnages.
 
 **Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,

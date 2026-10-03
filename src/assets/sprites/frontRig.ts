@@ -15,13 +15,27 @@ export interface Pt {
   y: number;
 }
 
+let RS = 1;
+/**
+ * Échelle du rig : les formes sont décrites en unités « rig » et rastérisées
+ * à RS pixels par unité (RS = 2 → deux fois plus de détail pour le même dessin).
+ */
+export function setRigScale(s: number): void {
+  RS = s;
+}
+export function rigScale(): number {
+  return RS;
+}
+
 export class Mask {
   readonly data: Uint8Array;
-  constructor(
-    readonly w: number,
-    readonly h: number,
-  ) {
-    this.data = new Uint8Array(w * h);
+  readonly w: number;
+  readonly h: number;
+  /** Dimensions en unités rig (converties en pixels réels selon l'échelle). */
+  constructor(w: number, h: number) {
+    this.w = Math.round(w * RS);
+    this.h = Math.round(h * RS);
+    this.data = new Uint8Array(this.w * this.h);
   }
   get(x: number, y: number): number {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return 0;
@@ -33,7 +47,8 @@ export class Mask {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     this.data[y * this.w + x] = 1;
   }
-  poly(pts: ReadonlyArray<Pt>): this {
+  poly(ptsIn: ReadonlyArray<Pt>): this {
+    const pts = ptsIn.map((p) => ({ x: p.x * RS, y: p.y * RS }));
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const p of pts) {
       minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
@@ -52,6 +67,10 @@ export class Mask {
     return this;
   }
   ellipse(cx: number, cy: number, rx: number, ry: number): this {
+    cx *= RS;
+    cy *= RS;
+    rx *= RS;
+    ry *= RS;
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
       for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
         const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
@@ -60,7 +79,11 @@ export class Mask {
     return this;
   }
   /** Segment épais à extrémités arrondies (capsule) avec épaisseur variable. */
-  capsule(a: Pt, b: Pt, r0: number, r1 = r0): this {
+  capsule(aIn: Pt, bIn: Pt, r0: number, r1 = r0): this {
+    const a = { x: aIn.x * RS, y: aIn.y * RS };
+    const b = { x: bIn.x * RS, y: bIn.y * RS };
+    r0 *= RS;
+    r1 *= RS;
     const minX = Math.floor(Math.min(a.x, b.x) - Math.max(r0, r1) - 1);
     const maxX = Math.ceil(Math.max(a.x, b.x) + Math.max(r0, r1) + 1);
     const minY = Math.floor(Math.min(a.y, b.y) - Math.max(r0, r1) - 1);
@@ -78,8 +101,19 @@ export class Mask {
     return this;
   }
   rect(x: number, y: number, w: number, h: number): this {
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x + i, y + j);
+    for (let j = 0; j < h * RS; j++) for (let i = 0; i < w * RS; i++) this.set(x * RS + i, y * RS + j);
     return this;
+  }
+
+  /** Efface tout ce qui est sous la ligne `y` (unités rig). */
+  clearBelow(y: number): this {
+    for (let yy = Math.max(0, Math.round(y * RS)); yy < this.h; yy++) for (let xx = 0; xx < this.w; xx++) this.data[yy * this.w + xx] = 0;
+    return this;
+  }
+
+  /** Remplit une couleur unie sur le masque. */
+  fill(c: PixelCanvas, col: number): void {
+    for (let yy = 0; yy < this.h; yy++) for (let xx = 0; xx < this.w; xx++) if (this.data[yy * this.w + xx]) c.px(xx, yy, col);
   }
   /** Distance (4-voisinage) au bord, plafonnée à `max`. 0 = hors masque. */
   distances(max = 5): Uint8Array {
@@ -116,7 +150,7 @@ export const bayer = (x: number, y: number) => BAYER[(x & 3) + (y & 3) * 4] / 16
 
 /** Peint une plaque à partir d'un masque, avec volume et gravure. */
 export function paint(c: PixelCanvas, m: Mask, t: Tones, opts: { engraveAt?: number; light?: number } = {}): void {
-  const d = m.distances(5);
+  const d = m.distances(Math.round(5 * RS));
   let minY = Infinity, maxY = -Infinity;
   for (let y = 0; y < m.h; y++)
     for (let x = 0; x < m.w; x++)
@@ -126,7 +160,7 @@ export function paint(c: PixelCanvas, m: Mask, t: Tones, opts: { engraveAt?: num
       }
   const span = Math.max(1, maxY - minY);
   const light = opts.light ?? 0;
-  const engraveAt = opts.engraveAt ?? 3;
+  const engraveAt = Math.round((opts.engraveAt ?? 3) * RS);
   for (let y = 0; y < m.h; y++)
     for (let x = 0; x < m.w; x++) {
       const k = d[y * m.w + x];
@@ -143,6 +177,12 @@ export function paint(c: PixelCanvas, m: Mask, t: Tones, opts: { engraveAt?: num
         const v = (y - minY) / span - light;
         const b = bayer(x, y);
         col = v < 0.3 ? (v + b * 0.3 < 0.28 ? t.hi : t.base) : v > 0.68 ? (v - b * 0.3 > 0.62 ? t.dark : t.base) : t.base;
+        // Grain : quelques pixels plus clairs/sombres pour une matière usée.
+        if (RS > 1) {
+          const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+          if (n % 29 === 0) col = t.hi;
+          else if (n % 23 === 0) col = t.dark;
+        }
       }
       c.px(x, y, col);
     }

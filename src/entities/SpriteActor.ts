@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA_PITCH, CAMERA_YAW, PIXELS_PER_UNIT } from '../rendering/IsoCamera';
+import { CAMERA_PITCH, CAMERA_YAW } from '../rendering/IsoCamera';
 import { createSpriteMaterial, type SpriteUniforms } from '../rendering/SpriteMaterial';
 import { AnimationPlayer } from './animation/AnimationPlayer';
 import type { SpriteSheet } from './animation/SpriteSheet';
@@ -40,20 +40,20 @@ export class SpriteActor {
   /** Décalage vertical visuel (sauts, lévitation). */
   lift = 0;
 
-  constructor(readonly sheet: SpriteSheet, initialClip: string, shadowRadius = 0.6, depthBias = 0.6, emissiveIntensity = 1.6) {
+  constructor(readonly sheet: SpriteSheet, initialClip: string, shadowRadius = 0.6, depthBias = 0.6, emissiveIntensity = 1.6, fillLight = 0.7) {
     this.colorTex = sheet.color.clone();
     this.emissiveTex = sheet.emissive.clone();
     const { material, uniforms } = createSpriteMaterial(
       this.colorTex,
       this.emissiveTex,
       new THREE.Vector2(sheet.cols * sheet.frameW, sheet.rows * sheet.frameH),
-      { depthBias, emissiveIntensity, fillLight: 0.7 },
+      { depthBias, emissiveIntensity, fillLight },
     );
     this.material = material;
     this.uniforms = uniforms;
 
-    const w = sheet.frameW / PIXELS_PER_UNIT;
-    const h = (sheet.frameH / PIXELS_PER_UNIT) * VERTICAL_STRETCH;
+    const w = sheet.frameW / sheet.pixelsPerUnit;
+    const h = (sheet.frameH / sheet.pixelsPerUnit) * VERTICAL_STRETCH;
     const geo = new THREE.PlaneGeometry(w, h);
     // Pivot : (pivotX, pivotY) de la frame à l'origine.
     const px = (sheet.pivotX + 0.5) / sheet.frameW;
