@@ -55,9 +55,11 @@ scellée, bannières profanées, torches vacillantes (lumières dynamiques), bru
 rampante, poussière, braises, ombres pixelisées de la lune, objets examinables.
 
 **Personnages** : Varyn utilise le sprite dessiné `src/assets/images/varyn.png`
-(106×121 px, vue isométrique 3/4). Il est animé par un rig de calques découpés
-automatiquement dans l'image : cape qui ondule, buste qui respire, jambes, épée
-Eclipse extraite et pivotée pour les attaques, roulade. Les squelettes sont dessinés
+(106×121 px, vue isométrique 3/4), animé par un squelette complet
+(`src/assets/sprites/boneRig.ts`) : bassin, buste, tête, épaules, coudes, poignets,
+hanches, genoux, chevilles, épée attachée à la main, cape ondulante. Chaque pixel
+est attribué à un os, le dessous des membres est reconstitué, puis chaque segment
+tourne autour de son articulation (hiérarchie parent → enfant). Les squelettes sont dessinés
 procéduralement à la même densité (32 px par unité), avec flammes spectrales.
 Rendu à 32 px par unité monde pour garder tout le détail des personnages.
 

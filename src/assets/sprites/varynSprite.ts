@@ -1,319 +1,284 @@
 import { PixelCanvas } from '../pixel/PixelCanvas';
-import { getImage, type Pixels } from '../images/registry';
+import { getImage } from '../images/registry';
 import { buildSpriteSheet, type ClipDef, type SpriteSheet } from '../../entities/animation/SpriteSheet';
 import { crescent, rotated, sampleKeys } from './frontRig';
+import {
+  apply, boneTransforms, buildBoneRig, closeCracks, drawPart, segDist, translate,
+  type Affine, type BoneDef, type RigData, type Vec,
+} from './boneRig';
 
 /**
  * Varyn, Seigneur des Abysses — sprite dessiné (src/assets/images/varyn.png,
- * 106×121 px natifs, vue isométrique 3/4 tournée vers la droite) animé par un
- * rig de calques découpés automatiquement dans l'image :
- *  - cape gauche et pan droit (ondulation, balancement, envol),
- *  - jambe gauche / jambe droite (pas, appui, agenouillement),
- *  - buste (respiration, inclinaison),
- *  - épée Eclipse extraite puis pivotée autour de la main (attaques),
- * et une rotation globale pour la roulade. Le trou laissé par la lame devant
- * les jambes est comblé avec les pixels voisins.
+ * 106×121 px, vue isométrique 3/4 tournée vers la droite), animé par un
+ * squelette complet comme un corps humain :
+ *
+ *   bassin ─┬─ buste ─┬─ tête
+ *           │         ├─ bras avant : épaule → coude → poignet → (épée Eclipse)
+ *           │         └─ bras arrière : épaule → coude → poignet
+ *           ├─ jambe avant : hanche → genou → cheville
+ *           ├─ jambe arrière : hanche → genou → cheville
+ *           └─ cape (ondulation, envol)
+ *
+ * Chaque pose donne l'angle de chaque articulation (relatif au repos).
  */
 export interface VarynPose {
-  bob: number;
-  lean: number;
-  lLx: number;
-  lLy: number;
-  lRx: number;
-  lRy: number;
-  /** Écrasement des jambes (1 = normal, <1 = genou à terre). */
-  legScale: number;
-  /** Angle absolu de la lame (écran, y vers le bas). Repos : 0.70. */
-  swordA: number;
-  sdx: number;
-  sdy: number;
-  /** 1 : l'épée passe derrière le corps. */
-  swordBehind: number;
+  rx: number;
+  ry: number;
+  torso: number;
+  head: number;
+  /** Bras avant (tient l'épée) : épaule, coude, poignet. */
+  nS: number;
+  nE: number;
+  nW: number;
+  /** Bras arrière. */
+  fS: number;
+  fE: number;
+  fW: number;
+  /** Jambe avant : hanche, genou, cheville. */
+  nH: number;
+  nK: number;
+  nA: number;
+  /** Jambe arrière. */
+  fH: number;
+  fK: number;
+  fA: number;
   sway: number;
   flare: number;
   wave: number;
+  /** Traînée de l'épée (0..1) — l'arc est calculé depuis la trajectoire de la pointe. */
   smear: number;
   smearFrom: number;
   smearTo: number;
+  smearR: number;
+  /** Griffes abyssales de la main arrière. */
   claw: number;
   clawFrom: number;
   clawTo: number;
   runes: number;
   roll: number;
+  swordBehind: number;
 }
 
-// --- Géométrie de l'image source (pixels natifs) ---------------------------
+// --- Squelette (coordonnées de l'image source) ------------------------------
+const P = {
+  waist: { x: 60, y: 62 },
+  neck: { x: 61, y: 24 },
+  nShoulder: { x: 46, y: 33 },
+  nElbow: { x: 39, y: 48 },
+  nWrist: { x: 42, y: 57 },
+  nHand: { x: 44, y: 61 },
+  fShoulder: { x: 73, y: 34 },
+  fElbow: { x: 77, y: 50 },
+  fWrist: { x: 79, y: 61 },
+  fHand: { x: 80, y: 64 },
+  nHip: { x: 51, y: 67 },
+  nKnee: { x: 49, y: 82 },
+  nAnkle: { x: 45, y: 103 },
+  nToe: { x: 42, y: 112 },
+  fHip: { x: 64, y: 70 },
+  fKnee: { x: 67, y: 87 },
+  fAnkle: { x: 71, y: 102 },
+  fToe: { x: 80, y: 109 },
+  pelvis: { x: 60, y: 66 },
+};
+const SWORD_TIP: Vec = { x: 98.6, y: 107.3 };
+
+const BONES: BoneDef[] = [
+  { id: 'pelvis', parent: null, pivot: P.pelvis, core: true },
+  { id: 'cape', parent: null, pivot: P.pelvis, core: true },
+  { id: 'torso', parent: 'pelvis', pivot: P.waist, core: true },
+  { id: 'head', parent: 'torso', pivot: P.neck },
+  { id: 'nUpper', parent: 'torso', pivot: P.nShoulder },
+  { id: 'nFore', parent: 'nUpper', pivot: P.nElbow },
+  { id: 'nHand', parent: 'nFore', pivot: P.nWrist },
+  { id: 'sword', parent: 'nHand', pivot: P.nHand },
+  { id: 'fUpper', parent: 'torso', pivot: P.fShoulder },
+  { id: 'fFore', parent: 'fUpper', pivot: P.fElbow },
+  { id: 'fHand', parent: 'fFore', pivot: P.fWrist },
+  { id: 'nThigh', parent: 'pelvis', pivot: P.nHip },
+  { id: 'nShin', parent: 'nThigh', pivot: P.nKnee },
+  { id: 'nFoot', parent: 'nShin', pivot: P.nAnkle },
+  { id: 'fThigh', parent: 'pelvis', pivot: P.fHip },
+  { id: 'fShin', parent: 'fThigh', pivot: P.fKnee },
+  { id: 'fFoot', parent: 'fShin', pivot: P.fAnkle },
+];
+
+// --- Lame (pour la segmentation) ---------------------------------------------
 const REST_A = 0.7008;
 const DIR = { x: Math.cos(REST_A), y: Math.sin(REST_A) };
 const NRM = { x: -DIR.y, y: DIR.x };
 const GUARD = { x: 48, y: 65 };
-const HAND = { x: 43, y: 61 };
-const WAIST = 84;
 
-// --- Cadre des frames --------------------------------------------------------
-const FW = 224;
-const FH = 192;
-const OX = 60;
-const OY = 60;
-const G = OY + 115;
-const PIVOT_X = OX + 60;
-
-const BASE: VarynPose = {
-  bob: 0, lean: 0, lLx: 0, lLy: 0, lRx: 0, lRy: 0, legScale: 1,
-  swordA: REST_A, sdx: 0, sdy: 0, swordBehind: 0,
-  sway: 0, flare: 0, wave: 0.6,
-  smear: 0, smearFrom: 0, smearTo: 0, claw: 0, clawFrom: 0, clawTo: 0,
-  runes: 0.5, roll: 0,
-};
-
-type Layer = 'none' | 'capeL' | 'capeR' | 'legL' | 'legR' | 'upper' | 'sword';
-
-interface Rig {
-  w: number;
-  h: number;
-  color: Uint32Array;
-  layer: Layer[];
-  glow: Uint8Array;
-}
-
-const pack = (r: number, g: number, b: number) => (r << 16) | (g << 8) | b;
-
-/** Découpe l'image en calques et comble le trou laissé par la lame. */
-function buildRig(src: Pixels): { rig: Rig; under: Map<number, { c: number; l: Layer }> } {
-  const under = new Map<number, { c: number; l: Layer }>();
-  const { width: w, height: h, data } = src;
-  const color = new Uint32Array(w * h);
-  const layer: Layer[] = new Array(w * h).fill('none');
-  const glow = new Uint8Array(w * h);
-  const alpha = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : data[(y * w + x) * 4 + 3]);
-
+function swordMask(w: number, h: number, opaque: (x: number, y: number) => boolean): Uint8Array {
+  const m = new Uint8Array(w * h);
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-      color[i] = pack(r, g, b);
-      if (!alpha(x, y)) continue;
-      // Reflets violets de l'armure : émissifs.
-      if (b > 110 && b > g + 45 && r > g + 10) glow[i] = 1;
-      // Position le long de la lame (t, depuis la garde) et écart (p).
+      if (!opaque(x, y)) continue;
       const dx = x + 0.5 - (GUARD.x + 0.5), dy = y + 0.5 - (GUARD.y + 0.5);
       const t = dx * DIR.x + dy * DIR.y;
       const p = dx * NRM.x + dy * NRM.y;
-      const bladeW = t < 56 ? 4.3 : 4.3 - ((t - 56) / 12) * 2.4;
-      const onBlade = t > 0.5 && t < 69 && Math.abs(p) <= bladeW;
-      // Garde : segment perpendiculaire.
-      const onGuard = Math.abs(t) <= 2.2 && Math.abs(p) <= 11.5;
-      const onPommel = t <= 0.5 && t > -27 && Math.abs(p) <= 2.8;
-      if (onBlade || onGuard || onPommel) layer[i] = 'sword';
-      else if (x < 39 && y >= 52) layer[i] = 'capeL';
-      else if (x >= 79 && y >= 42 && y <= 72) layer[i] = 'capeR';
-      else if (x >= 38 && x <= 51 && y >= 88) layer[i] = 'legL';
-      else if (x >= 62 && y >= 86) layer[i] = 'legR';
-      else layer[i] = 'upper';
+      const bw = t < 56 ? 4.3 : 4.3 - ((t - 56) / 12) * 2.4;
+      const blade = t > 0.5 && t < 69 && Math.abs(p) <= bw;
+      const guard = Math.abs(t) <= 2.2 && Math.abs(p) <= 11.5;
+      const hilt = t <= 0.5 && t > -27 && Math.abs(p) <= 2.8 && Math.hypot(x - P.nHand.x, y - P.nHand.y) > 5;
+      if (blade || guard || hilt) m[y * w + x] = 1;
     }
-
-  // Absorbe dans l'épée les résidus fins (contour de lame hors du corps).
+  // Absorbe les résidus fins le long de la lame (contour hors du corps).
   for (let pass = 0; pass < 2; pass++) {
     const grab: number[] = [];
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (!alpha(x, y) || layer[i] === 'sword') continue;
+        if (!opaque(x, y) || m[y * w + x]) continue;
         let touch = false;
         let body = 0;
         for (let j = -1; j <= 1; j++)
           for (let k = -1; k <= 1; k++) {
             if (!j && !k) continue;
             const xx = x + k, yy = y + j;
-            if (!alpha(xx, yy)) continue;
-            if (layer[yy * w + xx] === 'sword') touch = true;
+            if (!opaque(xx, yy)) continue;
+            if (m[yy * w + xx]) touch = true;
             else body++;
           }
-        if (touch && body <= 3) grab.push(i);
+        if (touch && body <= 3) grab.push(y * w + x);
       }
-    for (const i of grab) layer[i] = 'sword';
+    for (const i of grab) m[i] = 1;
   }
+  return m;
+}
 
-  // Comble le trou laissé par l'épée là où elle passait devant le corps :
-  // un pixel est « dans le corps » s'il a du corps des deux côtés de la lame,
-  // puis le remplissage se propage depuis les voisins (teinte la plus sombre).
-  const inside: number[] = [];
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      if (layer[i] !== 'sword') continue;
-      // Encadré par le corps de part et d'autre (en travers ou le long de la lame).
-      const enclosed = [NRM, DIR].some((ax) => {
-        let sides = 0;
-        for (const s of [-1, 1]) {
-          for (let k = 1; k <= 12; k++) {
-            const sx = Math.round(x + ax.x * k * s), sy = Math.round(y + ax.y * k * s);
-            if (!alpha(sx, sy)) break;
-            if (layer[sy * w + sx] !== 'sword') {
-              sides++;
-              break;
-            }
-          }
-        }
-        return sides === 2;
-      });
-      if (enclosed) inside.push(i);
-    }
-  const filled = new Map<number, { c: number; l: Layer }>();
-  const lum = (c: number) => ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
-  let pending = inside;
-  for (let pass = 0; pass < 30 && pending.length; pass++) {
-    const next: number[] = [];
-    const add: [number, { c: number; l: Layer }][] = [];
-    for (const i of pending) {
-      const x = i % w, y = (i / w) | 0;
-      let best: { c: number; l: Layer } | null = null;
-      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const xx = x + ox, yy = y + oy;
-        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        const j = yy * w + xx;
-        const cand = filled.get(j) ?? (alpha(xx, yy) && layer[j] !== 'sword' ? { c: color[j], l: layer[j] } : null);
-        if (cand && (!best || lum(cand.c) < lum(best.c))) best = cand;
+function buildRig(): RigData {
+  const img = getImage('varyn');
+  const { width: w, height: h, data } = img;
+  const opaque = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && data[(y * w + x) * 4 + 3] >= 128;
+  const sword = swordMask(w, h, opaque);
+  type Cand = [string, Vec, Vec, number];
+  const nArm: Cand[] = [
+    ['nUpper', { x: 45, y: 37 }, P.nElbow, 5.5],
+    ['nFore', P.nElbow, P.nWrist, 5],
+    ['nHand', P.nHand, P.nHand, 5.2],
+  ];
+  const fArm: Cand[] = [
+    ['fUpper', { x: 74, y: 37 }, P.fElbow, 6],
+    ['fFore', P.fElbow, P.fWrist, 6],
+    ['fHand', P.fHand, P.fHand, 5.5],
+  ];
+  const nLeg: Cand[] = [
+    ['nThigh', { x: 51, y: 72 }, P.nKnee, 6],
+    ['nShin', P.nKnee, P.nAnkle, 5.5],
+    ['nFoot', P.nAnkle, P.nToe, 6.5],
+  ];
+  const fLeg: Cand[] = [
+    ['fThigh', { x: 64, y: 76 }, P.fKnee, 6],
+    ['fShin', P.fKnee, P.fAnkle, 6],
+    ['fFoot', P.fAnkle, P.fToe, 8],
+  ];
+  const nearest = (p: Vec, list: Cand[]): string | null => {
+    let best: string | null = null;
+    let bestD = 0;
+    for (const [id, a, b, r] of list) {
+      const d = segDist(p, a, b) - r;
+      if (d <= 0 && (best === null || d < bestD)) {
+        best = id;
+        bestD = d;
       }
-      if (best) add.push([i, best]);
-      else next.push(i);
     }
-    for (const [i, v] of add) filled.set(i, v);
-    pending = next;
-  }
-  // Ferme les petits trous restants (pixels entourés sur 3 côtés au moins).
-  for (let pass = 0; pass < 4; pass++) {
-    for (let i = 0; i < w * h; i++) {
-      if (layer[i] !== 'sword' || filled.has(i)) continue;
-      const x = i % w, y = (i / w) | 0;
-      let best: { c: number; l: Layer } | null = null;
-      let n = 0;
-      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const xx = x + ox, yy = y + oy;
-        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        const j = yy * w + xx;
-        const cand = filled.get(j) ?? (alpha(xx, yy) && layer[j] !== 'sword' ? { c: color[j], l: layer[j] } : null);
-        if (!cand) continue;
-        n++;
-        if (!best || lum(cand.c) < lum(best.c)) best = cand;
-      }
-      if (n >= 3 && best) filled.set(i, best);
+    return best;
+  };
+  return buildBoneRig(img, BONES, (x, y) => {
+    if (sword[y * w + x]) return 'sword';
+    const p = { x: x + 0.5, y: y + 0.5 };
+    if (y < 24 && x >= 50 && x <= 74) return 'head';
+    if (x < 52 && y >= 38 && y <= 68) {
+      const n = nearest(p, nArm);
+      if (n) return n;
     }
-  }
-  for (const [i, v] of filled) under.set(i, v);
-  return { rig: { w, h, color, layer, glow }, under };
+    if (x >= 70 && y >= 36 && y <= 70) {
+      const n = nearest(p, fArm);
+      if (n) return n;
+    }
+    if (x <= 56 && y >= 74) {
+      const n = nearest(p, nLeg);
+      if (n && (n !== 'nFoot' || y >= 100)) return n;
+    }
+    if (x >= 58 && y >= 80) {
+      const n = nearest(p, fLeg);
+      if (n && (n !== 'fFoot' || y >= 99)) return n;
+    }
+    if ((x < 40 && y >= 50) || (x < 44 && y >= 88)) return 'cape';
+    return y < 63 ? 'torso' : 'pelvis';
+  });
 }
 
-interface Sampler {
-  rig: Rig;
-  under: Map<number, { c: number; l: Layer }>;
+// --- Cadre ---------------------------------------------------------------------
+const FW = 200;
+const FH = 200;
+const OX = 55;
+const OY = 70;
+const G = OY + 114;
+const PIVOT_X = OX + 60;
+
+const BASE: VarynPose = {
+  rx: 0, ry: 0, torso: 0, head: 0,
+  nS: 0, nE: 0, nW: 0, fS: 0, fE: 0, fW: 0,
+  nH: 0, nK: 0, nA: 0, fH: 0, fK: 0, fA: 0,
+  sway: 0, flare: 0, wave: 0.6,
+  smear: 0, smearFrom: 0, smearTo: 0, smearR: 0,
+  claw: 0, clawFrom: 0, clawTo: 0,
+  runes: 0.5, roll: 0, swordBehind: 0,
+};
+
+function anglesOf(p: VarynPose): Record<string, number> {
+  return {
+    torso: p.torso, head: p.head,
+    nUpper: p.nS, nFore: p.nE, nHand: p.nW,
+    fUpper: p.fS, fFore: p.fE, fHand: p.fW,
+    nThigh: p.nH, nShin: p.nK, nFoot: p.nA,
+    fThigh: p.fH, fShin: p.fK, fFoot: p.fA,
+  };
 }
 
-function sampleLayer(s: Sampler, x: number, y: number, want: Layer): number | null {
-  const { rig } = s;
-  if (x < 0 || y < 0 || x >= rig.w || y >= rig.h) return null;
-  const i = y * rig.w + x;
-  if (want === 'sword') return rig.layer[i] === 'sword' ? rig.color[i] : null;
-  if (rig.layer[i] === want) return rig.color[i];
-  const u = s.under.get(i);
-  if (u && u.l === want) return u.c;
-  return null;
+function transformsOf(rig: RigData, p: VarynPose): Affine[] {
+  return boneTransforms(rig, anglesOf(p), translate(p.rx, p.ry));
 }
 
-function glowAt(s: Sampler, x: number, y: number): boolean {
-  if (x < 0 || y < 0 || x >= s.rig.w || y >= s.rig.h) return false;
-  return s.rig.glow[y * s.rig.w + x] === 1;
+/** Position monde (source) d'un point d'un os. */
+function worldPoint(rig: RigData, tf: Affine[], bone: string, pt: Vec): Vec {
+  return apply(tf[rig.index.get(bone)!], pt);
 }
 
-function emit(c: PixelCanvas, e: PixelCanvas, s: Sampler, sx: number, sy: number, dx: number, dy: number, col: number, runes: number): void {
-  c.px(dx, dy, col);
-  if (glowAt(s, sx, sy)) {
-    const k = 0.55 + runes * 0.6;
-    const r = Math.min(255, ((col >> 16) & 255) * k), g = Math.min(255, ((col >> 8) & 255) * k), b = Math.min(255, (col & 255) * k);
-    e.px(dx, dy, (r << 16) | (g << 8) | b);
-  }
-}
+/** Ordre de profondeur, du fond vers l'avant. */
+const ORDER = ['cape', 'fUpper', 'fFore', 'fHand', 'fThigh', 'fShin', 'fFoot', 'pelvis', 'nThigh', 'nShin', 'nFoot', 'torso', 'head', 'nUpper', 'nFore', 'SWORD', 'nHand'];
 
-function drawFrame(s: Sampler, p: VarynPose, c: PixelCanvas, e: PixelCanvas, frame: number, count: number): void {
-  const { rig } = s;
+function drawFrame(rig: RigData, p: VarynPose, c: PixelCanvas, e: PixelCanvas, frame: number, count: number): void {
+  const tf = transformsOf(rig, p);
   const phase = (frame / Math.max(1, count)) * Math.PI * 2;
-  const upperDx = (y: number) => Math.round(p.lean * Math.max(0, Math.min(1, (WAIST - y) / 70)));
-  const upperDy = (y: number) => Math.round(p.bob * Math.max(0, Math.min(1, (WAIST + 4 - y) / 14)));
-
-  // Cape : décalage horizontal par ligne, croissant vers l'ourlet.
-  const capeDx = (y: number, top: number, side: number) => {
-    const f = Math.max(0, Math.min(1, (y - top) / (rig.h - top)));
-    const wave = Math.sin(y * 0.21 - phase * 1) * p.wave * 2.2 + Math.sin(y * 0.47 - phase * 2) * p.wave * 0.8;
-    return Math.round(f * (wave + p.sway * 3 * side - p.flare * 9) + upperDx(Math.min(y, top + 4)) * (1 - f));
+  // Cape : ondulation par ligne, croissante vers l'ourlet ; envol vers l'arrière (gauche).
+  const capeShift = (sy: number) => {
+    const f = Math.max(0, Math.min(1, (sy - 50) / 70));
+    const wave = Math.sin(sy * 0.21 - phase) * p.wave * 2.2 + Math.sin(sy * 0.47 - phase * 2) * p.wave * 0.8;
+    return Math.round(f * (wave + p.sway * 3 - p.flare * 10));
   };
-
-  const drawCape = (which: 'capeL' | 'capeR', top: number) => {
-    for (let dy = 0; dy < rig.h + 8; dy++) {
-      const ys = dy - Math.round(p.bob * Math.max(0, 1 - (dy - top) / 30)) + Math.round(p.flare * 4 * Math.max(0, (dy - top) / 60));
-      const off = capeDx(ys, top, which === 'capeL' ? 1 : -0.5);
-      for (let dx = -12; dx < rig.w + 12; dx++) {
-        const col = sampleLayer(s, dx - off, ys, which);
-        if (col !== null) emit(c, e, s, dx - off, ys, OX + dx, OY + dy, col, p.runes);
-      }
-    }
-  };
-
-  const drawLeg = (which: 'legL' | 'legR', ox: number, oy: number) => {
-    const foot = 115;
-    for (let dy = 0; dy < rig.h; dy++) {
-      // Écrasement vertical autour du pied (genou à terre).
-      const ys = Math.round(foot - (foot - (dy - oy)) / p.legScale);
-      for (let dx = 0; dx < rig.w; dx++) {
-        const col = sampleLayer(s, dx - ox, ys, which);
-        if (col !== null) emit(c, e, s, dx - ox, ys, OX + dx, OY + dy, col, p.runes);
-      }
-    }
-  };
-
-  const drawSword = () => {
-    const delta = p.swordA - REST_A;
-    const cos = Math.cos(-delta), sin = Math.sin(-delta);
-    const hx = HAND.x + upperDx(HAND.y) + p.sdx;
-    const hy = HAND.y + upperDy(HAND.y) + p.sdy;
-    const R = 80;
-    for (let dy = Math.floor(hy - R); dy <= hy + R; dy++)
-      for (let dx = Math.floor(hx - R); dx <= hx + R; dx++) {
-        const rx = dx + 0.5 - hx, ry = dy + 0.5 - hy;
-        const sx = Math.floor(HAND.x + rx * cos - ry * sin);
-        const sy = Math.floor(HAND.y + rx * sin + ry * cos);
-        const col = sampleLayer(s, sx, sy, 'sword');
-        if (col === null) continue;
-        c.px(OX + dx, OY + dy, col);
-        // Gouttière runique : légère lueur le long de la lame quand Varyn concentre sa puissance.
-        if (p.runes > 0.8) e.px(OX + dx, OY + dy, 0x2a1060);
-      }
-  };
-
-  drawCape('capeR', 42);
-  drawCape('capeL', 52);
-  if (p.swordBehind > 0.5) drawSword();
-  drawLeg('legL', p.lLx, -p.lLy);
-  drawLeg('legR', p.lRx, -p.lRy);
-  // Buste (et bas du corps statique) avec inclinaison et respiration.
-  for (let dy = -20; dy < rig.h; dy++) {
-    const sy = dy - upperDy(dy);
-    const shift = upperDx(sy);
-    for (let dx = -10; dx < rig.w + 10; dx++) {
-      const sx = dx - shift;
-      const col = sampleLayer(s, sx, sy, 'upper');
-      if (col !== null) emit(c, e, s, sx, sy, OX + dx, OY + dy, col, p.runes);
-    }
+  const opts = { glow: p.runes, rowShift: { cape: capeShift } };
+  const draw = (id: string) => drawPart(rig, id, tf[rig.index.get(id)!], OX, OY, c, e, opts);
+  if (p.swordBehind > 0.5) draw('sword');
+  for (const id of ORDER) {
+    if (id === 'SWORD') {
+      if (p.swordBehind <= 0.5) draw('sword');
+    } else draw(id);
   }
-  if (p.swordBehind <= 0.5) drawSword();
+  closeCracks(c);
   c.outline(0x05040a);
 
-  const hand = { x: OX + HAND.x + upperDx(HAND.y) + p.sdx, y: OY + HAND.y + upperDy(HAND.y) + p.sdy };
   if (p.smear > 0) {
-    crescent(c, e, hand, p.smearFrom, p.smearTo, 22, 80, { edge: 0xf0e4ff, core: 0xb27cff, faint: 0x6a30d0 }, p.smear);
+    const sh = worldPoint(rig, tf, 'nUpper', P.nShoulder);
+    crescent(c, e, { x: OX + sh.x, y: OY + sh.y }, p.smearFrom, p.smearTo, Math.max(10, p.smearR - 42), p.smearR + 3,
+      { edge: 0xf0e4ff, core: 0xb27cff, faint: 0x6a30d0 }, p.smear);
   }
   if (p.claw > 0) {
-    const chest = { x: OX + 62 + p.lean, y: OY + 50 };
-    for (const r of [24, 30, 36]) crescent(c, e, chest, p.clawFrom, p.clawTo, r - 2, r, { edge: 0xe8d4ff, core: 0xa060ff, faint: 0x6a30d0 }, p.claw);
+    const sh = worldPoint(rig, tf, 'fUpper', P.fShoulder);
+    for (const r of [24, 30, 36]) {
+      crescent(c, e, { x: OX + sh.x, y: OY + sh.y }, p.clawFrom, p.clawTo, r - 2, r, { edge: 0xe8d4ff, core: 0xa060ff, faint: 0x6a30d0 }, p.claw);
+    }
   }
 }
 
@@ -321,148 +286,202 @@ function drawFrame(s: Sampler, p: VarynPose, c: PixelCanvas, e: PixelCanvas, fra
 
 const K = (keys: { t: number; p: Partial<VarynPose> }[], n: number, loop = false) => sampleKeys(BASE, keys, n, loop);
 
-function walkCycle(n: number, stride: number, lift: number, extra: Partial<VarynPose>): VarynPose[] {
+function walkCycle(n: number, amp: number, knee: number, extra: Partial<VarynPose>): VarynPose[] {
   return Array.from({ length: n }, (_, i) => {
     const ph = (i / n) * Math.PI * 2;
+    const s = Math.sin(ph);
     return {
       ...BASE,
       ...extra,
-      lLx: Math.round(Math.cos(ph) * stride),
-      lLy: Math.round(Math.max(0, Math.sin(ph)) * lift),
-      lRx: Math.round(-Math.cos(ph) * stride),
-      lRy: Math.round(Math.max(0, -Math.sin(ph)) * lift),
-      bob: Math.round(Math.abs(Math.sin(ph)) * 2),
-      swordA: (extra.swordA ?? REST_A) + Math.sin(ph) * 0.04,
+      // Jambes en opposition ; le genou plie pendant la phase de retour.
+      nH: -s * amp,
+      nK: Math.max(0, Math.cos(ph)) * knee,
+      nA: -Math.max(0, Math.cos(ph)) * knee * 0.4,
+      fH: s * amp,
+      fK: Math.max(0, -Math.cos(ph)) * knee,
+      fA: -Math.max(0, -Math.cos(ph)) * knee * 0.4,
+      // Balancier des bras.
+      fS: (extra.fS ?? 0) + s * amp * 0.7,
+      fE: (extra.fE ?? 0) - Math.abs(s) * 0.15,
+      nS: (extra.nS ?? 0) - s * amp * 0.25,
+      ry: (extra.ry ?? 0) - Math.round(Math.abs(Math.cos(ph)) * 2) + 1,
+      torso: (extra.torso ?? 0) + Math.sin(ph * 2) * 0.02,
+      head: (extra.head ?? 0) - Math.sin(ph * 2) * 0.03,
     };
   });
 }
 
-export const VARYN_CLIPS: ClipDef<VarynPose>[] = [
+const CLIPS: ClipDef<VarynPose>[] = [
   {
-    name: 'idle', fps: 7, loop: true,
+    name: 'idle', fps: 6, loop: true,
     frames: K([
       { t: 0, p: { wave: 0.5 } },
-      { t: 0.5, p: { bob: 2, wave: 0.7, runes: 0.85, swordA: REST_A + 0.02 } },
+      { t: 0.5, p: { ry: 1, torso: 0.02, head: -0.04, nS: 0.03, nE: -0.03, fS: -0.04, fE: 0.06, wave: 0.7, runes: 0.85 } },
       { t: 1, p: { wave: 0.5 } },
     ], 8, true),
   },
-  { name: 'walk', fps: 11, loop: true, frames: walkCycle(8, 3, 3, { wave: 0.9, sway: 0.4, lean: 1 }), events: { 1: 'step', 5: 'step' } },
+  { name: 'walk', fps: 11, loop: true, frames: walkCycle(8, 0.4, 0.6, { wave: 0.9, sway: 0.4, torso: 0.04 }), events: { 1: 'step', 5: 'step' } },
   {
     name: 'run', fps: 14, loop: true,
-    frames: walkCycle(8, 5, 5, { wave: 1.2, flare: 0.8, lean: 5, swordA: 0.4, sdx: 3 }),
+    frames: walkCycle(8, 0.55, 0.95, { wave: 1.2, flare: 0.8, torso: 0.2, head: -0.12, nS: 0.25, nE: 0.2, fE: -0.5 }),
     events: { 1: 'step', 5: 'step' },
   },
   {
+    // Taille diagonale : l'épée part derrière la tête et s'abat en avant.
     name: 'attack1', fps: 14, loop: false,
     frames: K([
-      { t: 0, p: { swordA: -2.1, sdx: -6, sdy: -14, lean: -4, bob: -1, wave: 0.8 } },
-      { t: 0.3, p: { swordA: -1.2, sdx: 0, sdy: -12, lean: 0, smear: 1, smearFrom: -2.1, smearTo: -1.2, runes: 1 } },
-      { t: 0.5, p: { swordA: 0.1, sdx: 8, sdy: -4, lean: 6, lLx: 3, smear: 1, smearFrom: -1.6, smearTo: 0.1, runes: 1, flare: 0.4 } },
-      { t: 0.7, p: { swordA: 0.95, sdx: 8, sdy: 2, lean: 6, lLx: 3, bob: 2, smear: 0.6, smearFrom: -0.5, smearTo: 0.95, flare: 0.5 } },
-      { t: 1, p: { swordA: 0.85, sdx: 4, lean: 2, bob: 1 } },
+      { t: 0, p: { torso: -0.15, head: 0.05, nS: -3.3, nE: -0.9, nW: -0.5, fS: 0.3, fE: -0.3, nH: 0.1, fH: -0.1, ry: -1 } },
+      { t: 0.3, p: { torso: -0.05, nS: -2.9, nE: -0.6, nW: -0.4, fS: 0.2, smear: 1 } },
+      { t: 0.5, p: { torso: 0.14, head: -0.06, nS: -1.8, nE: -0.25, nW: -0.15, fS: -0.3, fE: -0.4, nH: -0.25, nK: 0.2, fH: 0.15, smear: 1, runes: 1, flare: 0.4 } },
+      { t: 0.7, p: { torso: 0.22, head: -0.1, nS: -0.6, nE: 0.1, nW: 0.4, fS: -0.5, fE: -0.5, nH: -0.3, nK: 0.3, fH: 0.2, ry: 2, smear: 0.6, flare: 0.5 } },
+      { t: 1, p: { torso: 0.06, nS: -0.1, nW: 0.15, ry: 1 } },
     ], 7),
   },
   {
+    // Revers ascendant : de bas en avant vers le haut et l'arrière.
     name: 'attack2', fps: 14, loop: false,
     frames: K([
-      { t: 0, p: { swordA: 1.5, sdx: 2, sdy: 6, lean: 3, bob: 3 } },
-      { t: 0.3, p: { swordA: 0.6, sdx: 8, sdy: 2, lean: 5, smear: 1, smearFrom: 1.5, smearTo: 0.6, runes: 1 } },
-      { t: 0.55, p: { swordA: -0.7, sdx: 8, sdy: -8, lean: 4, bob: -2, smear: 1, smearFrom: 1.0, smearTo: -0.7, runes: 1, flare: 0.4 } },
-      { t: 0.75, p: { swordA: -1.4, sdx: 4, sdy: -14, lean: 1, smear: 0.6, smearFrom: 0.0, smearTo: -1.4 } },
-      { t: 1, p: { swordA: -1.6, sdx: 0, sdy: -14, lean: 0 } },
+      { t: 0, p: { torso: 0.15, nS: 0.25, nE: 0.1, nW: 0.25, ry: 3, nH: -0.2, nK: 0.3 } },
+      { t: 0.3, p: { torso: 0.1, nS: -0.7, nE: -0.3, nW: -0.3, fS: 0.3, smear: 1, runes: 1 } },
+      { t: 0.55, p: { torso: -0.06, head: 0.05, nS: -1.8, nE: -0.5, nW: -0.5, fS: 0.4, ry: -2, smear: 1, flare: 0.4 } },
+      { t: 0.75, p: { torso: -0.1, nS: -2.1, nE: -0.6, nW: -0.6, fS: 0.35, ry: -2, smear: 0.6 } },
+      { t: 1, p: { torso: -0.1, nS: -2.2, nE: -0.6, nW: -0.6, ry: -1 } },
     ], 7),
   },
   {
+    // Coup vertical écrasant : saut, épée au-dessus de la tête, impact au sol.
     name: 'attack3', fps: 14, loop: false,
     frames: K([
-      { t: 0, p: { swordA: -1.75, sdx: 0, sdy: -16, bob: -3, runes: 1, flare: 0.3 } },
-      { t: 0.3, p: { swordA: -1.95, sdx: -3, sdy: -20, bob: -5, runes: 1, flare: 0.5 } },
-      { t: 0.45, p: { swordA: -0.8, sdx: 4, sdy: -12, bob: -1, lean: 3, smear: 1, smearFrom: -1.95, smearTo: -0.8, runes: 1 } },
-      { t: 0.6, p: { swordA: 1.05, sdx: 10, sdy: 4, bob: 6, lean: 7, lLx: 4, smear: 1, smearFrom: -1.3, smearTo: 1.05, runes: 1, flare: 0.6 } },
-      { t: 0.82, p: { swordA: 1.1, sdx: 10, sdy: 5, bob: 6, lean: 7, lLx: 4, runes: 0.9, flare: 0.3 } },
-      { t: 1, p: { swordA: 0.8, sdx: 3, bob: 1, lean: 2 } },
+      { t: 0, p: { torso: -0.12, nS: -3.0, nE: -1.0, nW: -0.3, fS: -2.4, fE: -0.8, ry: -3, nH: -0.2, nK: 0.4, runes: 1 } },
+      { t: 0.3, p: { torso: -0.18, head: 0.08, nS: -3.2, nE: -1.1, nW: -0.4, fS: -2.6, fE: -0.9, ry: -6, nH: -0.3, nK: 0.6, fH: 0.2, fK: 0.4, runes: 1, flare: 0.5 } },
+      { t: 0.45, p: { torso: 0.05, nS: -2.0, nE: -0.5, nW: 0.1, fS: -1.4, fE: -0.5, ry: -2, smear: 1, runes: 1 } },
+      { t: 0.6, p: { torso: 0.3, head: -0.15, nS: -0.9, nE: -0.2, nW: 1.2, fS: -0.6, fE: -0.3, ry: 6, nH: -0.5, nK: 0.9, nA: -0.3, fH: 0.4, fK: 0.5, smear: 1, runes: 1, flare: 0.6 } },
+      { t: 0.82, p: { torso: 0.3, head: -0.15, nS: -0.9, nE: -0.2, nW: 1.2, fS: -0.5, ry: 6, nH: -0.5, nK: 0.9, nA: -0.3, fH: 0.4, fK: 0.5, runes: 0.9 } },
+      { t: 1, p: { torso: 0.08, nS: -0.2, nW: 0.3, ry: 2, nH: -0.1, nK: 0.2 } },
     ], 8),
   },
   {
+    // Tourbillon : charge l'épée derrière, puis tour complet autour de l'épaule.
     name: 'heavy', fps: 12, loop: false,
     frames: K([
-      { t: 0, p: { swordA: 2.5, sdx: -10, sdy: 4, lean: -5, bob: 3, runes: 1, swordBehind: 1, sway: -0.5 } },
-      { t: 0.3, p: { swordA: 2.75, sdx: -12, sdy: 5, lean: -6, bob: 4, runes: 1, swordBehind: 1, flare: 0.3 } },
-      { t: 0.45, p: { swordA: 1.2, sdx: 0, sdy: 4, lean: 2, bob: 2, smear: 1, smearFrom: 2.75, smearTo: 1.2, runes: 1 } },
-      { t: 0.55, p: { swordA: -0.3, sdx: 8, sdy: -2, lean: 6, smear: 1, smearFrom: 2.4, smearTo: -0.3, runes: 1, flare: 0.6 } },
-      { t: 0.65, p: { swordA: -1.9, sdx: 4, sdy: -10, lean: 4, smear: 1, smearFrom: 1.0, smearTo: -1.9, runes: 1, flare: 0.8 } },
-      { t: 0.75, p: { swordA: -3.4, sdx: -6, sdy: -8, lean: 0, smear: 1, smearFrom: -0.5, smearTo: -3.4, runes: 1, flare: 0.8 } },
-      { t: 0.87, p: { swordA: -4.9, sdx: -6, sdy: 2, lean: -1, bob: 3, smear: 0.6, smearFrom: -2.2, smearTo: -4.9, flare: 0.5 } },
-      { t: 1, p: { swordA: REST_A - Math.PI * 2, sdx: 0, bob: 1 } },
+      { t: 0, p: { torso: -0.25, head: 0.1, nS: 0.9, nE: 0.4, nW: 0.6, fS: 0.6, ry: 3, nH: -0.3, nK: 0.5, fH: 0.3, fK: 0.3, runes: 1, swordBehind: 1, sway: -0.5 } },
+      { t: 0.3, p: { torso: -0.3, head: 0.12, nS: 1.0, nE: 0.5, nW: 0.6, fS: 0.7, ry: 5, nH: -0.4, nK: 0.7, fH: 0.4, fK: 0.4, runes: 1, swordBehind: 1, flare: 0.3 } },
+      { t: 0.45, p: { torso: 0.0, nS: -0.5, nE: 0.2, nW: 0.3, fS: 0.2, ry: 3, smear: 1, runes: 1 } },
+      { t: 0.55, p: { torso: 0.2, nS: -2.0, nE: 0.0, nW: 0.1, fS: -0.4, ry: 1, nH: -0.3, fH: 0.2, smear: 1, runes: 1, flare: 0.6 } },
+      { t: 0.65, p: { torso: 0.15, nS: -3.6, nE: -0.2, nW: 0.0, fS: -0.8, ry: 0, smear: 1, runes: 1, flare: 0.8 } },
+      { t: 0.75, p: { torso: 0.0, nS: -5.2, nE: -0.1, nW: 0.1, fS: -0.4, ry: 2, smear: 1, runes: 1, flare: 0.8 } },
+      { t: 0.87, p: { torso: -0.05, nS: -6.1, nE: 0, nW: 0.1, ry: 3, smear: 0.6, flare: 0.5 } },
+      { t: 1, p: { nS: -Math.PI * 2, ry: 1 } },
     ], 9),
   },
   {
     name: 'dodge', fps: 14, loop: false,
     frames: K([
-      { t: 0, p: { lean: 5, bob: 3, flare: 0.7, wave: 1.2, swordA: 0.35, sdx: 2, lRx: 3, lLx: -3 } },
-      { t: 0.45, p: { lean: 9, bob: 5, flare: 1.2, wave: 1.4, swordA: 0.25, sdx: 4, lRx: 5, lLx: -5, lLy: 3, runes: 1 } },
-      { t: 1, p: { lean: 3, bob: 2, flare: 0.4, wave: 0.9, swordA: 0.5 } },
+      { t: 0, p: { torso: 0.2, nS: 0.3, nE: 0.2, fS: 0.5, fE: -0.3, nH: -0.35, nK: 0.3, fH: 0.4, fK: 0.3, ry: 3, flare: 0.7, wave: 1.2 } },
+      { t: 0.45, p: { torso: 0.35, head: -0.15, nS: 0.5, nE: 0.3, fS: 0.8, fE: -0.4, nH: -0.55, nK: 0.5, fH: 0.6, fK: 0.6, ry: 5, flare: 1.2, wave: 1.4, runes: 1 } },
+      { t: 1, p: { torso: 0.12, nS: 0.1, fS: 0.2, ry: 2, flare: 0.4, wave: 0.9 } },
     ], 6),
   },
   {
     name: 'roll', fps: 16, loop: false,
     frames: [
-      { ...BASE, lean: 5, bob: 4, flare: 0.5, swordA: 0.35, swordBehind: 1 },
-      ...[1, 2, 3, 4, 5, 6].map((i) => ({ ...BASE, lean: 3, bob: 2, flare: 0.9, wave: 1.2, swordA: -0.5, sdx: -6, sdy: -4, swordBehind: 1, roll: (i / 6) * Math.PI * 2 - 0.0001 })),
-      { ...BASE, lean: 3, bob: 3, flare: 0.4, swordA: 0.5 },
+      { ...BASE, torso: 0.3, head: 0.2, nS: 0.3, fS: 0.4, nH: -0.4, nK: 0.6, fH: -0.2, fK: 0.6, ry: 5, flare: 0.5 },
+      ...[1, 2, 3, 4, 5, 6].map((i) => ({
+        ...BASE, torso: 0.5, head: 0.35, nS: 0.5, nE: 0.6, fS: 0.6, fE: 0.8,
+        nH: -1.1, nK: 1.6, fH: -0.9, fK: 1.7, ry: 8, flare: 0.9, wave: 1.2, swordBehind: 1,
+        roll: (i / 6) * Math.PI * 2 - 0.0001,
+      })),
+      { ...BASE, torso: 0.2, nS: 0.2, nH: -0.3, nK: 0.5, fK: 0.3, ry: 4, flare: 0.4 },
     ],
   },
   {
     name: 'hurt', fps: 10, loop: false,
     frames: K([
-      { t: 0, p: { lean: -6, bob: 1, swordA: 1.0, sdx: -3, sway: -0.6, runes: 0.2 } },
-      { t: 0.5, p: { lean: -4, bob: 2, swordA: 0.9 } },
-      { t: 1, p: { lean: -1, bob: 1 } },
+      { t: 0, p: { torso: -0.22, head: -0.25, nS: 0.35, nE: 0.2, fS: -0.5, fE: -0.4, nH: 0.15, fH: -0.1, ry: 1, sway: -0.6, runes: 0.2 } },
+      { t: 0.5, p: { torso: -0.15, head: -0.12, nS: 0.25, fS: -0.3, ry: 2 } },
+      { t: 1, p: { torso: -0.04, ry: 1 } },
     ], 3),
   },
   {
+    // Genou arrière à terre, cuisse avant à l'horizontale, épée plantée devant lui.
     name: 'death', fps: 9, loop: false,
     frames: K([
-      { t: 0, p: { lean: -6, swordA: 1.0, runes: 0.3 } },
-      { t: 0.3, p: { lean: 2, bob: 4, swordA: 1.3, sdx: 4, sdy: 8, runes: 0.2 } },
-      { t: 0.55, p: { lean: 5, bob: 7, swordA: 1.5, sdx: 8, sdy: 16, runes: 0.1, wave: 0.3 } },
-      { t: 1, p: { lean: 7, bob: 8, swordA: 1.57, sdx: 9, sdy: 18, runes: 0, wave: 0.15, sway: -0.3 } },
+      { t: 0, p: { torso: -0.22, head: -0.25, nS: 0.35, fS: -0.4, runes: 0.3 } },
+      { t: 0.3, p: { torso: 0.1, head: 0.1, nS: -0.2, nW: 0.4, nH: -0.6, nK: 0.6, fH: 0.05, fK: 0.7, fA: -0.4, ry: 5 } },
+      { t: 0.6, p: { torso: 0.25, head: 0.35, nS: -0.5, nE: -0.1, nW: 1.0, fS: 0.3, fE: 0.4, nH: -1.5, nK: 1.4, nA: 0.1, fH: 0.1, fK: 1.65, fA: -1.2, ry: 14, runes: 0.1, wave: 0.3 } },
+      { t: 1, p: { torso: 0.32, head: 0.5, nS: -0.5, nE: -0.1, nW: 1.05, fS: 0.35, fE: 0.5, nH: -1.6, nK: 1.45, nA: 0.15, fH: 0.1, fK: 1.7, fA: -1.2, ry: 15, runes: 0, wave: 0.15, sway: -0.3 } },
     ], 9),
   },
   {
+    // Griffe abyssale : la main arrière déchire l'air en avant.
     name: 'cast', fps: 14, loop: false,
     frames: K([
-      { t: 0, p: { lean: -3, bob: 1, swordA: 1.3, sdx: -4, runes: 1 } },
-      { t: 0.35, p: { lean: 3, swordA: 1.3, claw: 1, clawFrom: -2.2, clawTo: -0.9, runes: 1, flare: 0.3 } },
-      { t: 0.55, p: { lean: 7, lLx: 3, swordA: 1.35, claw: 1, clawFrom: -1.9, clawTo: 0.5, runes: 1, flare: 0.5 } },
-      { t: 0.75, p: { lean: 6, lLx: 3, swordA: 1.3, claw: 0.5, clawFrom: -0.8, clawTo: 0.9, flare: 0.3 } },
-      { t: 1, p: { lean: 1, swordA: 0.9 } },
+      { t: 0, p: { torso: -0.12, fS: -2.6, fE: -0.6, fW: -0.4, nS: 0.2, runes: 1 } },
+      { t: 0.35, p: { torso: 0.05, fS: -2.0, fE: -0.3, fW: -0.2, claw: 1, runes: 1 } },
+      { t: 0.55, p: { torso: 0.25, head: -0.1, fS: -0.7, fE: 0.0, fW: 0.2, nH: -0.3, nK: 0.3, claw: 1, runes: 1, flare: 0.5 } },
+      { t: 0.75, p: { torso: 0.22, fS: -0.2, fE: 0.1, fW: 0.3, nH: -0.3, nK: 0.3, claw: 0.5, flare: 0.3 } },
+      { t: 1, p: { torso: 0.05, fS: 0 } },
     ], 7),
   },
   {
     name: 'interact', fps: 8, loop: false,
     frames: K([
-      { t: 0, p: { lean: 1, bob: 1 } },
-      { t: 1, p: { lean: 4, bob: 2, runes: 1 } },
+      { t: 0, p: { torso: 0.05 } },
+      { t: 1, p: { torso: 0.15, head: -0.1, fS: -1.3, fE: -0.4, fW: -0.2, nH: -0.2, nK: 0.2, runes: 1 } },
     ], 4),
   },
   {
+    // Victoire : Eclipse brandie vers le ciel.
     name: 'victory', fps: 7, loop: true,
     frames: K([
-      { t: 0, p: { swordA: -1.57, sdx: -2, sdy: -22, runes: 1, flare: 0.5, wave: 1 } },
-      { t: 0.5, p: { swordA: -1.57, sdx: -2, sdy: -24, runes: 1, flare: 0.7, wave: 1.2, bob: -1 } },
-      { t: 1, p: { swordA: -1.57, sdx: -2, sdy: -22, runes: 1, flare: 0.5, wave: 1 } },
+      { t: 0, p: { torso: -0.1, head: 0.12, nS: -2.6, nE: -0.1, nW: 0.43, fS: 0.4, fE: -0.3, runes: 1, flare: 0.5, wave: 1 } },
+      { t: 0.5, p: { torso: -0.12, head: 0.15, nS: -2.65, nE: -0.12, nW: 0.47, fS: 0.45, fE: -0.35, runes: 1, flare: 0.7, wave: 1.2, ry: -1 } },
+      { t: 1, p: { torso: -0.1, head: 0.12, nS: -2.6, nE: -0.1, nW: 0.43, fS: 0.4, fE: -0.3, runes: 1, flare: 0.5, wave: 1 } },
     ], 6, true),
   },
 ];
+
+/**
+ * Traînées : l'arc est déduit de la trajectoire réelle de la pointe de
+ * l'épée autour de l'épaule (deux frames en arrière → frame courante).
+ */
+function annotateTrails(rig: RigData, clip: ClipDef<VarynPose>): void {
+  let prev: number | null = null;
+  let prevPrev: number | null = null;
+  for (const f of clip.frames) {
+    const tf = transformsOf(rig, f);
+    const sh = worldPoint(rig, tf, 'nUpper', P.nShoulder);
+    const tip = worldPoint(rig, tf, 'sword', SWORD_TIP);
+    let a = Math.atan2(tip.y - sh.y, tip.x - sh.x);
+    if (prev !== null) {
+      while (a - prev > Math.PI) a -= Math.PI * 2;
+      while (a - prev < -Math.PI) a += Math.PI * 2;
+    }
+    if (f.smear > 0 && prev !== null) {
+      f.smearFrom = prevPrev ?? prev;
+      f.smearTo = a;
+      f.smearR = Math.hypot(tip.x - sh.x, tip.y - sh.y);
+    }
+    if (f.claw > 0) {
+      const fsh = worldPoint(rig, tf, 'fUpper', P.fShoulder);
+      const hand = worldPoint(rig, tf, 'fHand', P.fHand);
+      const ha = Math.atan2(hand.y - fsh.y, hand.x - fsh.x);
+      f.clawTo = ha;
+      f.clawFrom = ha - 1.4;
+    }
+    prevPrev = prev;
+    prev = a;
+  }
+}
+
+export const VARYN_CLIPS = CLIPS;
 
 let cached: SpriteSheet | null = null;
 
 export function getVarynSheet(): SpriteSheet {
   if (!cached) {
-    const { rig, under } = buildRig(getImage('varyn'));
-    const sampler: Sampler = { rig, under };
-    const counts = new Map(VARYN_CLIPS.map((c) => [c, c.frames.length]));
+    const rig = buildRig();
+    for (const clip of CLIPS) annotateTrails(rig, clip);
     cached = buildSpriteSheet<VarynPose>({
       frameW: FW,
       frameH: FH,
@@ -471,18 +490,18 @@ export function getVarynSheet(): SpriteSheet {
       pixelsPerUnit: 32,
       outline: null,
       facesLeft: false,
-      clips: VARYN_CLIPS,
+      clips: CLIPS,
       draw: (pose, c, e, frame, row) => {
-        const clip = VARYN_CLIPS[row];
+        const count = CLIPS[row].frames.length;
         if (pose.roll !== 0) {
           const tc = new PixelCanvas(FW, FH);
           const te = new PixelCanvas(FW, FH);
-          drawFrame(sampler, pose, tc, te, frame, counts.get(clip) ?? 8);
-          const cx = OX + 58, cy = OY + 78;
+          drawFrame(rig, pose, tc, te, frame, count);
+          const cx = OX + 60, cy = OY + 80;
           c.blit(rotated(tc, pose.roll, cx, cy), 0, 0);
           e.blit(rotated(te, pose.roll, cx, cy), 0, 0);
         } else {
-          drawFrame(sampler, pose, c, e, frame, counts.get(clip) ?? 8);
+          drawFrame(rig, pose, c, e, frame, count);
         }
       },
     });
@@ -490,23 +509,25 @@ export function getVarynSheet(): SpriteSheet {
   return cached;
 }
 
-/** Image native pour le portrait du HUD (heaume + couronne). */
-export const VARYN_PORTRAIT_RECT = { x: OX + 44, y: OY + 2, w: 40, h: 40 };
+/** Zone du heaume pour le portrait du HUD. */
+export const VARYN_PORTRAIT_RECT = { x: OX + 42, y: OY + 2, w: 40, h: 40 };
 
-/** Débogage : calques du rig en couleurs (?debug=rig). */
+/** Débogage : parties du rig en couleurs (?debug=sprites&rig=1). */
 export function debugRigCanvas(): HTMLCanvasElement {
-  const { rig, under } = buildRig(getImage('varyn'));
+  const rig = buildRig();
   const c = new PixelCanvas(rig.w * 2 + 4, rig.h);
-  const tint: Record<Layer, number> = { none: 0, capeL: 0x3060ff, capeR: 0x30c0ff, legL: 0x30ff60, legR: 0x90ff30, upper: 0xffffff, sword: 0xff3030 };
+  const hue = (k: number) => {
+    const a = (k * 137.5 * Math.PI) / 180;
+    const r = 128 + 120 * Math.cos(a), g = 128 + 120 * Math.cos(a + 2.1), b = 128 + 120 * Math.cos(a + 4.2);
+    return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+  };
   for (let y = 0; y < rig.h; y++)
     for (let x = 0; x < rig.w; x++) {
       const i = y * rig.w + x;
-      const l = rig.layer[i];
-      if (l !== 'none') c.px(x, y, tint[l]);
-      const u = under.get(i);
-      if (l === 'sword' && !u) c.px(rig.w + 4 + x, y, 0xff00ff);
-      else if (u) c.px(rig.w + 4 + x, y, u.c);
-      else if (l !== 'none') c.px(rig.w + 4 + x, y, rig.color[i]);
+      if (rig.part[i] >= 0) c.px(x, y, hue(rig.part[i]));
+      if (rig.underPart[i] >= 0) c.px(rig.w + 4 + x, y, rig.underColor[i]);
+      else if (rig.part[i] >= 0 && rig.bones[rig.part[i]].core) c.px(rig.w + 4 + x, y, rig.color[i]);
     }
+  for (const b of rig.bones) c.px(b.pivot.x, b.pivot.y, 0xffffff);
   return c.toCanvas();
 }
