@@ -78,7 +78,7 @@ export function blade(
 }
 
 /** Traînée de taille : arc entre deux angles autour d'un point, plus vif côté lame. */
-export function swoosh(c: PixelCanvas, e: PixelCanvas, center: Pt, from: number, to: number, rIn: number, rOut: number, cols: [number, number, number]): void {
+export function swoosh(c: PixelCanvas, e: PixelCanvas, center: Pt, from: number, to: number, rIn: number, rOut: number, cols: [number, number, number], fade = 0): void {
   const sweep = to - from;
   const s = Math.sign(sweep) || 1;
   for (let y = Math.floor(center.y - rOut); y <= Math.ceil(center.y + rOut); y++)
@@ -94,6 +94,8 @@ export function swoosh(c: PixelCanvas, e: PixelCanvas, center: Pt, from: number,
       if (radial < 1 - (0.3 + 0.7 * t)) continue;
       const col = radial > 0.8 ? cols[2] : t > 0.5 ? cols[1] : cols[0];
       if (t < 0.25 && (x + y) % 2) continue;
+      // Fondu : la traînée se dissout de la queue vers la lame.
+      if (fade > 0 && bayer(x, y) < fade * (1.4 - t)) continue;
       c.px(x, y, col);
       e.px(x, y, col);
     }
@@ -125,4 +127,153 @@ export function withSpin(c: PixelCanvas, e: PixelCanvas, spin: number, cx: numbe
   draw(tc, te);
   c.blit(rotated(tc, spin, cx, cy), 0, 0);
   e.blit(rotated(te, spin, cx, cy), 0, 0);
+}
+
+// ------------------------------------------------------------- poses clés
+
+export type Ease = 'linear' | 'in' | 'out' | 'smooth' | 'snap';
+
+export interface Key<P> {
+  /** Instant normalisé 0..1 dans le clip. */
+  t: number;
+  p: Partial<P>;
+  /** Courbe d'arrivée sur cette clé depuis la précédente. */
+  ease?: Ease;
+}
+
+function easeFn(e: Ease, t: number): number {
+  switch (e) {
+    case 'in': return t * t;
+    case 'out': return 1 - (1 - t) * (1 - t);
+    case 'smooth': return t * t * (3 - 2 * t);
+    case 'snap': return t < 0.5 ? 0 : 1;
+    default: return t;
+  }
+}
+
+/**
+ * Échantillonne `n` frames entre des poses clés. Les champs numériques sont
+ * interpolés (avec la courbe de la clé d'arrivée), les autres sont tenus
+ * jusqu'à la clé suivante. Chaque clé hérite de la précédente.
+ */
+export function sampleKeys<P extends object>(base: P, keys: Key<P>[], n: number): P[] {
+  const full: { t: number; p: P; ease: Ease }[] = [];
+  let prev = base;
+  for (const k of keys) {
+    const p = { ...prev, ...k.p } as P;
+    full.push({ t: k.t, p, ease: k.ease ?? 'smooth' });
+    prev = p;
+  }
+  const out: P[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0 : i / (n - 1);
+    let k = 0;
+    while (k < full.length - 2 && t > full[k + 1].t) k++;
+    const a = full[k], b = full[Math.min(k + 1, full.length - 1)];
+    const span = b.t - a.t;
+    const u = span <= 0 ? 1 : Math.max(0, Math.min(1, (t - a.t) / span));
+    const e = easeFn(b.ease, u);
+    const o = { ...a.p } as Record<string, unknown>;
+    for (const key of Object.keys(b.p)) {
+      const va = (a.p as Record<string, unknown>)[key];
+      const vb = (b.p as Record<string, unknown>)[key];
+      if (typeof va === 'number' && typeof vb === 'number') o[key] = va + (vb - va) * e;
+      else o[key] = u >= 1 ? vb : va;
+    }
+    out.push(o as P);
+  }
+  return out;
+}
+
+/** Champs nécessaires au calcul automatique des traînées d'arme. */
+export interface TrailPose {
+  swordA: number;
+  /** Intensité de la traînée (0 : aucune). */
+  trail: number;
+  smear: number;
+  smearFrom: number;
+  smearTo: number;
+  smearFade: number;
+  ghostA: number[];
+}
+
+/**
+ * Traînées automatiques : la traînée de chaque frame couvre l'arc réellement
+ * balayé par la lame depuis la frame précédente, avec des images rémanentes
+ * de la lame aux positions intermédiaires.
+ */
+export function addTrails<P extends TrailPose>(frames: P[]): P[] {
+  return frames.map((f, i) => {
+    if (i === 0 || f.trail <= 0) return f;
+    const prev = frames[i - 1];
+    const d = f.swordA - prev.swordA;
+    if (Math.abs(d) < 0.35) return f;
+    const ghosts = Math.abs(d) > 0.9 ? [prev.swordA + d * 0.33, prev.swordA + d * 0.66] : [prev.swordA + d * 0.5];
+    return { ...f, smear: f.trail, smearFrom: prev.swordA, smearTo: f.swordA, smearFade: 1 - f.trail, ghostA: ghosts };
+  });
+}
+
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+/** Seuil de tramage ordonné 4×4 (0..1). */
+export function bayer(x: number, y: number): number {
+  return (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+}
+
+/** Image rémanente de lame : silhouette translucide, légèrement émissive. */
+export function ghostBlade(c: PixelCanvas, e: PixelCanvas, hand: Pt, a: number, len: number, col: number, alpha = 130): void {
+  const tip = polar(hand, a, len);
+  const b0 = polar(hand, a, 3);
+  c.line(b0.x, b0.y, tip.x, tip.y, col, 2, alpha);
+  e.line(b0.x, b0.y, tip.x, tip.y, col, 1, alpha >> 1);
+}
+
+/** Éclat en étoile (pointe de lame, impact). */
+export function sparkle(c: PixelCanvas, e: PixelCanvas, at: Pt, size: number, core: number, rim: number): void {
+  const x = Math.round(at.x), y = Math.round(at.y);
+  for (let k = 1; k <= size; k++) {
+    const col = k === size ? rim : core;
+    for (const [dx, dy] of [[k, 0], [-k, 0], [0, k], [0, -k]]) {
+      c.px(x + dx, y + dy, col);
+      e.px(x + dx, y + dy, col);
+    }
+  }
+  if (size >= 3) for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    c.px(x + dx, y + dy, rim);
+    e.px(x + dx, y + dy, rim);
+  }
+  c.px(x, y, 0xffffff);
+  e.px(x, y, 0xffffff);
+}
+
+/** Impact au sol dans la frame : poussière, éclats de pierre et fissure lumineuse. */
+export function groundImpact(c: PixelCanvas, e: PixelCanvas, at: Pt, k: number, glow: number, frame: number): void {
+  if (k <= 0) return;
+  const r = 4 + k * 7;
+  // Fissure.
+  for (const a of [0.2, 1.4, 2.6, 3.5, 4.6, 5.6]) {
+    let p = { x: at.x, y: at.y };
+    const len = r * (0.6 + ((a * 7) % 1) * 0.5);
+    for (let s = 0; s < len; s += 2) {
+      const q = polar(p, a + Math.sin(s + a) * 0.5, 2);
+      const qq = { x: q.x, y: at.y + (q.y - at.y) * 0.5 };
+      c.line(p.x, p.y, qq.x, qq.y, 0x120a18);
+      if (s < len * k) e.px(qq.x, qq.y, glow);
+      p = qq;
+    }
+  }
+  // Poussière en anneau aplati.
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + frame;
+    const d = r * (0.8 + (i % 3) * 0.15);
+    const x = at.x + Math.cos(a) * d;
+    const y = at.y + Math.sin(a) * d * 0.45;
+    if (bayer(Math.round(x), Math.round(y)) > k + 0.2) continue;
+    c.disc(x, y - 1, 1.5 + (i % 2), i % 3 ? 0x6e6478 : 0x8c8296, 200);
+  }
+  // Éclats projetés.
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI * (0.15 + i * 0.17);
+    const p = polar(at, a, r * 0.9 * (0.6 + k * 0.6));
+    c.px(p.x, p.y, 0x9a90a4);
+  }
 }

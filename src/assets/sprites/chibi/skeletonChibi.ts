@@ -1,13 +1,16 @@
-import type { PixelCanvas } from '../../pixel/PixelCanvas';
+import { PixelCanvas } from '../../pixel/PixelCanvas';
 import { buildSpriteSheet, type ClipDef, type SpriteSheet } from '../../../entities/animation/SpriteSheet';
-import { blade, CX, facingAngle, FH, FOOT_Y, FW, polar, shadedEllipse, shadedRect, swoosh, withSpin, type Dir, type Pt } from './chibiKit';
+import {
+  addTrails, blade, CX, facingAngle, FH, FOOT_Y, FW, ghostBlade, polar, sampleKeys, shadedEllipse, shadedRect, sparkle, swoosh, withSpin,
+  type Dir, type Key, type Pt, type TrailPose,
+} from './chibiKit';
 
 /**
  * Squelette de la crypte en chibi (~48 px) : crâne aux orbites bleues sous un
  * casque rouillé, cage thoracique, épée ébréchée et bouclier rond.
  * Mort : effondrement en tas d'os ; résurrection : la même chose à l'envers.
  */
-interface Pose {
+interface Pose extends TrailPose {
   dir: Dir;
   bob: number;
   lean: number;
@@ -23,6 +26,9 @@ interface Pose {
   /** 0 = debout, 1 = tas d'os. */
   collapse: number;
   spin: number;
+  sparks: number;
+  /** Tremblement d'os (±1 px une frame sur deux). */
+  shake: number;
 }
 
 const C = {
@@ -39,7 +45,7 @@ const WOOD = { lo: C.w0, mid: C.w1, hi: C.w2 };
 const SWORD = { edge: C.st2, mid: C.st1, dark: C.st0, guard: C.r1, grip: C.w1 };
 
 function base(dir: Dir): Pose {
-  return { dir, bob: 0, lean: 0, step: 0, swordA: facingAngle(dir) + 0.9, handR: 5, smear: 0, smearFrom: 0, smearTo: 0, shieldUp: false, jaw: 0, glow: 0.6, collapse: 0, spin: 0 };
+  return { dir, bob: 0, lean: 0, step: 0, swordA: facingAngle(dir) + 0.9, handR: 5, smear: 0, smearFrom: 0, smearTo: 0, shieldUp: false, jaw: 0, glow: 0.6, collapse: 0, spin: 0, trail: 0, smearFade: 0, ghostA: [], sparks: 0, shake: 0 };
 }
 
 function eyes(c: PixelCanvas, e: PixelCanvas, xs: number[], y: number, glow: number): void {
@@ -139,9 +145,10 @@ function drawSkeleton(p: Pose, c: PixelCanvas, e: PixelCanvas): void {
     p.dir === 'side'
       ? { x: chest.x + (p.shieldUp ? 6 : 2), y: chest.y + (p.shieldUp ? 0 : 3) }
       : { x: chest.x - swordSide * (p.shieldUp ? 4 : 7), y: chest.y + (p.shieldUp ? 1 : 3) };
-  const swordBehind = p.dir === 'up' ? Math.sin(p.swordA) < 0.4 : p.dir === 'side' ? false : Math.sin(p.swordA) < -0.6;
+  const swordBehind = p.dir === 'up' ? Math.sin(p.swordA) < 0.4 : p.dir === 'side' ? false : Math.sin(p.swordA) < -0.88;
   const shieldBehind = p.dir === 'up' || (p.dir === 'side' && !p.shieldUp);
 
+  for (const ga of p.ghostA) ghostBlade(c, e, polar(chest, ga, p.handR), ga, 15, 0x3a8ad0, 110);
   if (shieldBehind) drawShield(c, shieldAt, p.dir === 'up');
   if (swordBehind) blade(c, e, hand, p.swordA, 15, SWORD);
   drawLegs(c, p, hip);
@@ -155,7 +162,8 @@ function drawSkeleton(p: Pose, c: PixelCanvas, e: PixelCanvas): void {
   if (!shieldBehind) drawShield(c, shieldAt, p.dir !== 'side' || p.shieldUp);
   if (!swordBehind) blade(c, e, hand, p.swordA, 15, SWORD);
   c.outline(C.ink);
-  if (p.smear > 0) swoosh(c, e, chest, p.smearFrom, p.smearTo, p.handR + 7, p.handR + 15, [0x2a6ab0, 0x58c8ff, 0xd8f4ff]);
+  if (p.smear > 0) swoosh(c, e, chest, p.smearFrom, p.smearTo, p.handR + 6, p.handR + 16, [0x2a6ab0, 0x58c8ff, 0xd8f4ff], p.smearFade);
+  if (p.sparks > 0) sparkle(c, e, polar(hand, p.swordA, 15), p.sparks > 0.6 ? 3 : 2, C.eyeHi, C.eye);
 }
 
 /** Tas d'os : le squelette s'effondre progressivement (collapse 0..1). */
@@ -180,6 +188,55 @@ function drawPile(p: Pose, c: PixelCanvas, e: PixelCanvas): void {
 
 type Gen = (dir: Dir) => Partial<Pose>[];
 
+/** Le coup part du côté du bras d'arme (gauche de face, droite de dos, d'en haut derrière de profil). */
+const sideSign = (dir: Dir) => (dir === 'side' ? -1 : 1);
+const PX_FIELDS = ['bob', 'lean', 'step', 'jaw', 'shake'] as const;
+
+function keyed(dir: Dir, n: number, keys: Key<Pose>[]): Pose[] {
+  return sampleKeys(base(dir), keys, n).map((f) => {
+    const o = { ...f };
+    for (const k of PX_FIELDS) o[k] = Math.round(o[k]);
+    return o;
+  });
+}
+
+/** Armé : l'épée remonte derrière l'épaule, le squelette se cambre et claque des os. */
+const windup: Gen = (dir) => {
+  const F = facingAngle(dir);
+  const s = sideSign(dir);
+  return keyed(dir, 6, [
+    { t: 0, p: { swordA: F + s * 1.2, handR: 5 } },
+    { t: 0.35, ease: 'out', p: { swordA: F + s * 2.3, handR: 4, lean: -1, jaw: 1, glow: 1 } },
+    { t: 0.7, p: { swordA: F + s * 2.5, handR: 4, lean: -2, bob: 1, jaw: 2, shake: 1 } },
+    { t: 1, p: { swordA: F + s * 2.6, shake: 1, jaw: 1 } },
+  ]);
+};
+
+/** Frappe : fente en avant, taille rapide avec traînée et rémanences, accompagnement. */
+const strike: Gen = (dir) => {
+  const F = facingAngle(dir);
+  const s = sideSign(dir);
+  return keyed(dir, 6, [
+    { t: 0, p: { swordA: F + s * 2.6, handR: 4, lean: -1, glow: 1, jaw: 2 } },
+    { t: 0.25, ease: 'in', p: { swordA: F + s * 0.6, handR: 7, lean: 2, step: 1, trail: 1 } },
+    { t: 0.45, ease: 'out', p: { swordA: F - s * 1.1, handR: 8, lean: 3, trail: 1, sparks: 1 } },
+    { t: 0.7, p: { swordA: F - s * 1.4, handR: 7, lean: 2, trail: 0.4, sparks: 0, jaw: 1 } },
+    { t: 1, p: { swordA: F - s * 1.3, handR: 6, lean: 1, trail: 0 } },
+  ]);
+};
+
+/** Récupération : l'élan retombe, le crâne vacille, retour en garde. */
+const recover: Gen = (dir) => {
+  const F = facingAngle(dir);
+  const s = sideSign(dir);
+  return keyed(dir, 5, [
+    { t: 0, p: { swordA: F - s * 1.3, handR: 6, lean: 1, step: 1 } },
+    { t: 0.3, p: { swordA: F - s * 1.0, handR: 5, lean: 0, bob: 1, jaw: 1, step: 0 } },
+    { t: 0.6, p: { swordA: F + 0.5, bob: 0, jaw: 0, lean: -1 } },
+    { t: 1, p: { swordA: F + 0.9, handR: 5, lean: 0 } },
+  ]);
+};
+
 const CLIPS: { name: string; fps: number; loop: boolean; gen: Gen; events?: Record<number, string> }[] = [
   { name: 'idle', fps: 4, loop: true, gen: () => [{}, { bob: 1, glow: 0.8 }, { bob: 1, jaw: 1 }, {}] },
   {
@@ -187,35 +244,9 @@ const CLIPS: { name: string; fps: number; loop: boolean; gen: Gen; events?: Reco
     gen: () => [{ step: 1 }, { bob: 1, jaw: 1 }, { step: -1 }, { bob: 1 }],
     events: { 0: 'rattle', 2: 'rattle' },
   },
-  {
-    name: 'windup', fps: 8, loop: false,
-    gen: (dir) => {
-      const F = facingAngle(dir);
-      return [
-        { swordA: F - 1.6, handR: 5, lean: -1, glow: 1 },
-        { swordA: F - 2.3, handR: 5, lean: -2, glow: 1, jaw: 1 },
-        { swordA: F - 2.5, handR: 4, lean: -2, glow: 1, jaw: 1, bob: 1 },
-      ];
-    },
-  },
-  {
-    name: 'attack', fps: 12, loop: false,
-    gen: (dir) => {
-      const F = facingAngle(dir);
-      return [
-        { swordA: F - 0.6, handR: 7, lean: 2, smear: 1, smearFrom: F - 2.5, smearTo: F - 0.3, glow: 1, jaw: 2 },
-        { swordA: F + 0.9, handR: 7, lean: 2, smear: 1, smearFrom: F - 1.2, smearTo: F + 0.9, glow: 1, jaw: 2 },
-        { swordA: F + 1.1, handR: 6, lean: 1, glow: 1 },
-      ];
-    },
-  },
-  {
-    name: 'recover', fps: 6, loop: false,
-    gen: (dir) => {
-      const F = facingAngle(dir);
-      return [{ swordA: F + 1.2, handR: 5, lean: 1 }, { swordA: F + 1.0, handR: 5 }, {}];
-    },
-  },
+  { name: 'windup', fps: 10, loop: false, gen: windup },
+  { name: 'attack', fps: 18, loop: false, gen: strike },
+  { name: 'recover', fps: 9, loop: false, gen: recover },
   { name: 'block', fps: 8, loop: false, gen: () => [{ shieldUp: true, lean: -1 }, { shieldUp: true, bob: 1 }] },
   { name: 'hurt', fps: 10, loop: false, gen: () => [{ lean: -2, jaw: 2, glow: 1, bob: 1 }, { lean: -1, jaw: 1 }] },
 ];
@@ -230,7 +261,7 @@ export const SKELETON_CLIPS: ClipDef<Pose>[] = [
       fps: c.fps,
       loop: c.loop,
       events: c.events,
-      frames: c.gen(dir).map((o) => ({ ...base(dir), ...o })),
+      frames: addTrails(c.gen(dir).map((o) => ({ ...base(dir), ...o }))),
     })),
   ),
   // Mort et résurrection : identiques dans toutes les directions.
@@ -238,8 +269,19 @@ export const SKELETON_CLIPS: ClipDef<Pose>[] = [
   { name: 'rise', fps: 8, loop: false, events: { 0: 'rattle' }, frames: [...DEATH].reverse().map((o) => ({ ...base('down'), ...o })) },
 ];
 
-function draw(p: Pose, c: PixelCanvas, e: PixelCanvas): void {
-  withSpin(c, e, p.spin, CX, FOOT_Y - 11, (cc, ee) => (p.collapse > 0 ? drawPile(p, cc, ee) : drawSkeleton(p, cc, ee)));
+function draw(p: Pose, c: PixelCanvas, e: PixelCanvas, frame: number): void {
+  const paint = (cc: PixelCanvas, ee: PixelCanvas) =>
+    withSpin(cc, ee, p.spin, CX, FOOT_Y - 11, (c2, e2) => (p.collapse > 0 ? drawPile(p, c2, e2) : drawSkeleton(p, c2, e2)));
+  if (!p.shake) {
+    paint(c, e);
+    return;
+  }
+  const tc = new PixelCanvas(FW, FH);
+  const te = new PixelCanvas(FW, FH);
+  paint(tc, te);
+  const dx = frame % 2 ? p.shake : -p.shake;
+  c.blit(tc, dx, 0);
+  e.blit(te, dx, 0);
 }
 
 let cached: SpriteSheet | null = null;
@@ -255,7 +297,7 @@ export function getSkeletonSheet(): SpriteSheet {
       outline: null,
       facesLeft: false,
       clips: SKELETON_CLIPS,
-      draw: (pose, c, e) => draw(pose, c, e),
+      draw: (pose, c, e, frame) => draw(pose, c, e, frame),
     });
   }
   return cached;

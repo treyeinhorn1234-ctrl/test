@@ -61,7 +61,11 @@ marche en 4 temps. Varyn : heaume à cornes et couronne brisée, yeux rouges, ca
 pourpre, épée Eclipse dans le dos — idle, walk, run, combo ×3, coup lourd tournoyant,
 griffe abyssale, esquive, roulade, blessure, mort, interaction, victoire. Squelette :
 casque rouillé, orbites bleues, épée et bouclier — s'effondre en tas d'os et se
-relève. Visualiseur : `/?debug=sprites` (`&who=varyn`, `&zoom=4`).
+relève. Les attaques sont animées par **poses clés** interpolées (8 à 14 frames) :
+anticipation, taille, accompagnement et retour en garde, traînées calculées sur
+l'arc réellement balayé par la lame, images rémanentes, éclats, lame chargée,
+bond avec impact au sol, rotation complète sur soi-même (coup lourd).
+Visualiseur : `/?debug=sprites` (`&who=varyn`, `&clip=heavy`, `&zoom=4`).
 
 **Combat** : PV / mana / endurance, dégâts physiques et magiques, résistances,
 critiques, hitboxes en arc vs hurtboxes circulaires, recul, étourdissement,
