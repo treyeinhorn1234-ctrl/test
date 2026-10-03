@@ -190,6 +190,8 @@ class Input {
       jump: ['Space'],
       attack: ['KeyJ'],
       special: ['KeyK'],
+      qiwave: ['KeyI'],
+      timestop: ['KeyL'],
       dash: ['ShiftLeft', 'ShiftRight'],
       pause: ['Escape', 'KeyP'],
       confirm: ['Enter', 'NumpadEnter', 'Space', 'KeyJ'],
@@ -363,6 +365,21 @@ class AudioManager {
         break;
       case 'gate': this.noise(0.6, 0.25, 300, 'lowpass', 80); this.tone(80, 0.5, 'square', 0.08, 50); break;
       case 'talk': this.tone(rand(500, 700), 0.04, 'square', 0.03); break;
+      case 'dagger': this.noise(0.05, 0.08, 7000, 'highpass'); this.tone(1400, 0.04, 'square', 0.025, 900); break;
+      case 'graze': this.tone(2200, 0.03, 'square', 0.03); break;
+      case 'tick': this.tone(1500, 0.02, 'square', 0.04); this.tone(750, 0.03, 'triangle', 0.04, 0, 0.02); break;
+      case 'timeStop':
+        this.tone(900, 0.9, 'sawtooth', 0.09, 50);
+        this.tone(1800, 0.5, 'sine', 0.06, 200);
+        this.noise(0.8, 0.18, 6000, 'bandpass', 300, 0, 2);
+        break;
+      case 'timeResume': this.tone(60, 0.5, 'sawtooth', 0.08, 900); this.noise(0.4, 0.12, 300, 'bandpass', 5000, 0, 2); break;
+      case 'spell':
+        [392, 494, 587, 784].forEach((f, i) => this.tone(f, 1.0, 'triangle', 0.07, 0, i * 0.04));
+        this.noise(0.6, 0.15, 3000, 'highpass');
+        break;
+      case 'bullet': this.tone(700, 0.04, 'sine', 0.025, 400); break;
+      case 'bonus': [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.3, 'square', 0.05, 0, i * 0.06)); break;
       case 'upgrade': [440, 554, 659, 880].forEach((f, i) => this.tone(f, 0.25, 'square', 0.06, 0, i * 0.05)); break;
     }
   }
@@ -1033,6 +1050,7 @@ uniform float bloom;
 uniform float thr;
 uniform float grain;
 uniform float desat;
+uniform float cold;
 varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 vec3 tex(vec2 p) { return texture2D(tScene, (floor(p) + 0.5) / res).rgb; }
@@ -1064,6 +1082,7 @@ void main() {
   c += b * bloom / 6.0;
   float l = dot(c, vec3(0.299, 0.587, 0.114));
   c = mix(c, vec3(l), desat);
+  c = mix(c, vec3(l) * vec3(0.78, 0.9, 1.18) + vec3(0.02, 0.03, 0.06), cold);
   c *= tint;
   vec2 q = vUv - 0.5;
   c *= 1.0 - smoothstep(0.32, 0.82, length(q * vec2(1.0, 0.82))) * vignette;
@@ -1089,6 +1108,7 @@ class PostFX {
         thr: { value: 0.85 },
         grain: { value: 0.03 },
         desat: { value: 0 },
+        cold: { value: 0 },
       },
       vertexShader: SWAY_VS,
       fragmentShader: POST_FS,
@@ -1100,6 +1120,7 @@ class PostFX {
     this.cam = new THREE.OrthographicCamera(0, W, 0, -H, -10, 10);
     this.aberr = 0;
     this.desat = 0;
+    this.cold = 0;
   }
   setTheme(th) {
     const p = th ? th.post : { tint: [1, 1, 1], bloom: 0.3, thr: 0.85, vignette: 0.45, grain: 0.03 };
@@ -1133,6 +1154,7 @@ class PostFX {
     u.time.value = time;
     u.aberr.value = this.aberr;
     u.desat.value = this.desat;
+    u.cold.value = this.cold;
     for (let i = 0; i < 6; i++) {
       const r = this.ripples[i];
       if (r) this.rippleU[i].set(r.x - camX, H - (r.y - camY), r.r, r.s * Math.max(0, r.life / 0.6));
@@ -1690,6 +1712,7 @@ function drawProjectileFrame(ctx, kind, f) {
       break;
   }
 }
+const BULLET_COLORS = { red: '#e0412b', blue: '#4a8aff', violet: '#b46bff', gold: '#f2b53a', jade: '#3ecf8e', cyan: '#7fe3ff', white: '#eef4ff' };
 const PROJECTILE_DEFS = {
   fireball: { w: 12, h: 12, frames: 2 },
   voidball: { w: 12, h: 12, frames: 2 },
@@ -1945,6 +1968,23 @@ function generateArt(images) {
   ART.lightning = buildSheet(16, 176, 2, (c, f) => drawLightning(c, f), PAL.violet);
   ART.tornado = buildSheet(20, 40, 3, (c, f) => drawTornado(c, f), null);
   ART.lantern = buildLanternSheet();
+  ART.dagger = buildSheet(16, 7, 1, (ctx) => {
+    rect(ctx, 1, 3, 3, 1, PAL.gold);
+    rect(ctx, 4, 2, 1, 3, PAL.goldLight);
+    rect(ctx, 5, 2, 9, 3, '#d8e4f0');
+    rect(ctx, 5, 2, 9, 1, PAL.white);
+    rect(ctx, 5, 4, 8, 1, PAL.qi);
+    rect(ctx, 14, 3, 1, 1, PAL.white);
+  });
+  ART.bullets = {};
+  for (const [k, col] of Object.entries(BULLET_COLORS)) {
+    ART.bullets[k] = buildSheet(12, 12, 2, (ctx, f) => {
+      disc(ctx, 6, 6, 4, col);
+      disc(ctx, 6, 6, f ? 3 : 2, shade(col, 0.55));
+      disc(ctx, 6, 6, 1, PAL.white);
+      if (f) rect(ctx, 4, 4, 1, 1, PAL.white);
+    }, '#140c18');
+  }
 }
 
 // ---- Thèmes des décors : lavis à l'encre (shan shui) décliné par niveau ----
@@ -2966,10 +3006,11 @@ const LEVELS = [
     ] },
     signs: [
       '← → ou A / D : se déplacer.  ESPACE : sauter. Appuyez de nouveau en l\'air pour un double saut.',
-      'J : attaquer. Enchaînez trois coups pour un combo dévastateur. Attention aux pieux de bambou !',
+      'J : sabre (combo de trois coups). Maintenez K pour lancer des dagues de Qi, ↑+K pour viser en hauteur. Attention aux pieux de bambou !',
+      'L : ARRÊT DU TEMPS. Le monde se fige et l\'eau gèle : on peut marcher dessus ! La jauge d\'horloge s\'épuise. L pour relancer le temps.',
       'SHIFT : dash. Vous êtes invulnérable pendant le dash. Les planches fissurées s\'effondrent !',
       'Sautez contre les parois couvertes de lianes pour rebondir. Certains murs fissurés cachent des secrets...',
-      'K : vague de Qi (30 Qi). Frapper les ennemis recharge votre Qi. Le Général vous attend plus loin.',
+      'I : vague de Qi (30 Qi). Frôlez les projectiles sans être touché (GRAZE) pour recharger Qi et temps. Seul le cœur de votre corps est vulnérable.',
     ],
     boss: { kind: 'general', name: 'LE GÉNÉRAL CORROMPU', title: 'GARDIEN DU PREMIER FRAGMENT' },
     sections: [
@@ -3019,7 +3060,7 @@ const LEVELS = [
         '...............o..o...............',
         '.........o..o..====....o..o.......',
         '..k..L...====........====....L....',
-        '.G......................R..x...w.G',
+        '.G.s....................R..x...w.G',
         '#######~~~~~~~~~~~~~~~~~~~~#######',
         '#######~~~~~~~~~~~~~~~~~~~~#######',
         '##################################',
@@ -3208,7 +3249,7 @@ const LEVELS = [
     ] },
     signs: [
       'Les plateformes de bois glissent au-dessus du vide : observez leur rythme avant de sauter.',
-      'Le Seigneur des Vents attaque depuis les airs. Utilisez le double saut et la vague de Qi !',
+      'Les maîtres déclenchent des CARTES DE SORT : des nuées de projectiles. Survivez sans être touché pour un bonus, et n\'oubliez pas l\'arrêt du temps !',
     ],
     boss: { kind: 'wind', name: 'LE SEIGNEUR DES VENTS', title: 'MAÎTRE DES CIMES CÉLESTES' },
     sections: [
@@ -3440,7 +3481,7 @@ function moveBody(b, level, dt, usePlatforms = true) {
     const ty = Math.floor((b.y + b.h) / TILE);
     for (let tx = l; tx <= r; tx++) {
       const t = level.tileAt(tx, ty);
-      if (isSolidTile(t) || (t === T_ONEWAY && !b.dropThrough && prevBottom <= ty * TILE + 0.5)) {
+      if (level.solidTile(t) || (t === T_ONEWAY && !b.dropThrough && prevBottom <= ty * TILE + 0.5)) {
         b.y = ty * TILE - b.h;
         b.vy = 0;
         b.onGround = true;
@@ -3946,7 +3987,9 @@ class Level {
     if (ty < 0 || ty >= this.h) return T_EMPTY;
     return this.tiles[ty * this.w + tx];
   }
-  solidAt(tx, ty) { return isSolidTile(this.tileAt(tx, ty)); }
+  // l'eau se fige (et devient praticable) pendant l'arrêt du temps
+  solidTile(t) { return isSolidTile(t) || (t === T_HAZARD && this.theme.water && this.game.timeStopped); }
+  solidAt(tx, ty) { return this.solidTile(this.tileAt(tx, ty)); }
   standableAt(tx, ty) { const t = this.tileAt(tx, ty); return isSolidTile(t) || t === T_ONEWAY; }
   groundBelow(c, r) {
     for (let rr = r + 1; rr < this.h; rr++) {
@@ -4025,7 +4068,9 @@ class Level {
           let e = c;
           while (this.tileAt(e + 1, r) === T_HAZARD && this.tileAt(e + 1, r - 1) !== T_HAZARD) e++;
           const len = (e - c + 1) * TILE;
-          this.strips.push(new ScrollStrip(this.group, hzC, c * TILE, r * TILE, len, TILE, 9, 10, 0));
+          const hs = new ScrollStrip(this.group, hzC, c * TILE, r * TILE, len, TILE, 9, 10, 0);
+          hs.isHazard = true;
+          this.strips.push(hs);
           const sh = new ScrollStrip(this.group, shC, c * TILE, r * TILE, len, TILE, 9, -7, 0, 0.8);
           sh.mat.blending = THREE.AdditiveBlending;
           this.strips.push(sh);
@@ -4309,14 +4354,18 @@ class Level {
   addProjectile(p) { this.projectiles.push(p); return p; }
   // ---- Mise à jour ----
   update(dt) {
-    this.time += dt;
+    const stopped = this.game.timeStopped;
+    if (!stopped) this.time += dt;
     if (!this.showcase) this.stats.time += dt;
-    for (const p of this.platforms) p.update(dt);
+    if (!stopped) for (const p of this.platforms) { p.update(dt); }
+    else for (const p of this.platforms) { p.dx = 0; p.dy = 0; }
     if (this.player) this.player.update(dt);
-    for (const e of this.enemies) e.update(dt);
-    if (this.boss) this.boss.update(dt);
+    if (!stopped) {
+      for (const e of this.enemies) e.update(dt);
+      if (this.boss) this.boss.update(dt);
+    }
     for (const p of this.projectiles) p.update(dt);
-    for (const s of this.strikes) s.update(dt);
+    if (!stopped) for (const s of this.strikes) s.update(dt);
     for (const p of this.pickups) p.update(dt);
     for (const o of this.objects) o.update(dt);
     for (const e of this.effects) {
@@ -4341,7 +4390,7 @@ class Level {
       }
     }
     this.updateArena();
-    this.ambient(dt);
+    if (!stopped) this.ambient(dt);
   }
   sweep(list) {
     for (let i = list.length - 1; i >= 0; i--) {
@@ -4411,7 +4460,10 @@ class Level {
     const x = cam.rx, y = cam.ry, t = this.time;
     this.skyMesh.position.set(x, -y, 0);
     for (const l of this.layers) l.update(x, y, t);
-    for (const s of this.strips) s.update(t);
+    for (const s of this.strips) {
+      s.update(t);
+      if (s.isHazard && this.theme.water) s.mat.color.setHex(this.game.timeStopped ? 0xe8fbff : 0xffffff);
+    }
     for (const gl of this.glows) gl.update(t);
     const gust = Math.pow(Math.max(0, Math.sin(t * 0.37)), 6);
     for (const s of this.sways) s.update(t, gust);
@@ -4505,6 +4557,7 @@ class Player {
     this.comboCd = 0;
     this.qiCd = 0;
     this.casting = 0;
+    this.knifeCd = 0;
     this.invuln = 0;
     this.hurtT = 0;
     this.dead = false;
@@ -4663,7 +4716,10 @@ class Player {
     }
     if (this.attack) this.updateAttack(dt);
     // --- Pouvoir spécial : vague de Qi ---
-    if (!locked && inp.hit('special') && this.dashT <= 0) this.special();
+    this.knifeCd -= dt;
+    if (!locked && inp.held('special') && this.knifeCd <= 0 && this.dashT <= 0 && this.hurtT <= 0) this.throwKnife(inp.held('up'));
+    if (!locked && inp.hit('qiwave') && this.dashT <= 0) this.special();
+    if (!locked && inp.hit('timestop')) g.toggleTimeStop();
     // --- Physique ---
     const prevVy = this.vy;
     const res = moveBody(this, lv, dt);
@@ -4680,7 +4736,7 @@ class Player {
       this.airDash = false;
       // dernière position sûre (sol plein sous les deux pieds)
       const ty = Math.floor((this.y + this.h + 1) / TILE);
-      if (!this.standingOn && lv.solidAt(Math.floor(this.x / TILE), ty) && lv.solidAt(Math.floor((this.x + this.w) / TILE), ty) && this.invuln < 0.5) {
+      if (!this.standingOn && isSolidTile(lv.tileAt(Math.floor(this.x / TILE), ty)) && isSolidTile(lv.tileAt(Math.floor((this.x + this.w) / TILE), ty)) && this.invuln < 0.5) {
         this.safe.x = this.x;
         this.safe.y = this.y;
       }
@@ -4777,6 +4833,26 @@ class Player {
     const box = { x: this.x - 4, y: this.y, w: this.w + 8, h: this.h };
     this.applyHits(box, this.game.damage, { kb: 140, stop: 0.03 }, this.dashHits);
   }
+  // Dagues de Qi lancées en rafale (maintenir K ; ↑ pour viser en diagonale)
+  throwKnife(up) {
+    const g = this.game;
+    const cost = 3;
+    if (g.qi < cost) {
+      this.knifeCd = 0.3;
+      g.qiFlash = 0.3;
+      g.audio.play('noQi');
+      return;
+    }
+    g.qi -= cost;
+    this.knifeCd = 0.12;
+    this.casting = 0.12;
+    this.attack = null;
+    const x = this.facing > 0 ? this.x + this.w - 2 : this.x - 14;
+    const p = new Projectile(this.level, 'dagger', x, this.y + 8 - (up ? 4 : 0), this.facing * (up ? 280 : 380), up ? -260 : 0, 'player', 1 + g.upg.dmg * 0.5);
+    p.life = 0.75;
+    this.level.addProjectile(p);
+    g.audio.play('dagger');
+  }
   special() {
     const g = this.game;
     if (this.qiCd > 0) return;
@@ -4807,6 +4883,7 @@ class Player {
     if (this.dead || this.invuln > 0 || this.dashT > 0 || g.godMode) return false;
     g.hp -= dmg;
     g.combo = 0;
+    if (g.spell) g.spell.bonus = false;
     this.invuln = CONFIG.INVULN;
     this.hurtT = 0.32;
     this.attack = null;
@@ -4832,7 +4909,7 @@ class Player {
     for (let ty = t; ty <= b; ty++) {
       for (let tx = l; tx <= r; tx++) {
         const tile = lv.tileAt(tx, ty);
-        if (tile === T_HAZARD && this.y + this.h > ty * TILE + 5) return this.hazardHit(true);
+        if (tile === T_HAZARD && !lv.solidTile(tile) && this.y + this.h > ty * TILE + 5) return this.hazardHit(true);
         if (tile === T_SPIKE && this.invuln <= 0 && this.dashT <= 0 && this.y + this.h > ty * TILE + 7) {
           if (this.hurt(1, this.cx)) {
             this.vy = -300;
@@ -4878,6 +4955,7 @@ class Player {
   }
   die() {
     const g = this.game;
+    g.resumeTime(true);
     this.dead = true;
     this.deathT = 0;
     this.attack = null;
@@ -5402,13 +5480,19 @@ class Projectile {
     this.walls = true;
     this.hits = new Set();
     this.t = 0;
-    const sheet = kind === 'qiwave' ? ART.qiWave : kind === 'tornado' ? ART.tornado : ART.proj[kind];
+    const bcol = kind.startsWith('b_') ? kind.slice(2) : null;
+    const sheet = bcol ? ART.bullets[bcol] : kind === 'dagger' ? ART.dagger : kind === 'qiwave' ? ART.qiWave : kind === 'tornado' ? ART.tornado : ART.proj[kind];
+    this.turn = 0;
+    this.accel = 0;
+    this.maxSpeed = 400;
+    this.grazeCd = 0;
+    this.stopT = 0;
     this.sprite = new Sprite(level.group, sheet, 16);
     this.w = Math.max(6, sheet.fw - 4);
     this.h = Math.max(6, sheet.fh - 4);
     this.x = x + 2;
     this.y = y + 2;
-    this.trail = { fireball: 0xf07a2a, voidball: 0xc46bff, qiwave: 0x7fe3ff, windblade: 0xbfe8ff, meteor: 0xc46bff, jadeshard: 0x3ecf8e, shockwave: 0xf2b53a, jadewave: 0x9cf5c8, blade: 0xffffff, feather: 0xbfe8ff, tornado: 0xbfe8ff }[kind] || 0xffffff;
+    this.trail = bcol ? hexNum(BULLET_COLORS[bcol]) : kind === 'dagger' ? 0x7fe3ff : { fireball: 0xf07a2a, voidball: 0xc46bff, qiwave: 0x7fe3ff, windblade: 0xbfe8ff, meteor: 0xc46bff, jadeshard: 0x3ecf8e, shockwave: 0xf2b53a, jadewave: 0x9cf5c8, blade: 0xffffff, feather: 0xbfe8ff, tornado: 0xbfe8ff }[kind] || 0xffffff;
     if (kind === 'shockwave' || kind === 'jadewave' || kind === 'tornado') { this.ground = true; this.parryable = false; }
   }
   destroy() {
@@ -5424,9 +5508,21 @@ class Projectile {
   }
   update(dt) {
     if (this.dead) return;
+    // arrêt du temps : les projectiles ennemis se figent, ceux du héros s'arrêtent après un instant
+    if (this.game.timeStopped) {
+      if (this.owner === 'enemy') return;
+      this.stopT += dt;
+      if (this.stopT > 0.08) return;
+    }
     this.t += dt;
     this.life -= dt;
-    if (this.life <= 0) return this.destroy();
+    if (this.life <= 0) return this.danmaku ? (this.dead = true) : this.destroy();
+    if (this.turn || this.accel) {
+      const sp = clamp(Math.hypot(this.vx, this.vy) + this.accel * dt, 0, this.maxSpeed);
+      const a = Math.atan2(this.vy, this.vx) + this.turn * dt;
+      this.vx = Math.cos(a) * sp;
+      this.vy = Math.sin(a) * sp;
+    }
     this.vy += this.gravity * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -5440,10 +5536,22 @@ class Projectile {
       const ty = Math.floor((this.y + this.h + 2) / TILE);
       if (!lv.standableAt(Math.floor((this.x + this.w / 2) / TILE), ty)) return this.destroy();
     }
+    if (this.danmaku && lv.arena) {
+      const a = lv.arena;
+      if (this.x < a.x - 30 || this.x > a.x + W + 30 || this.y > lv.ph + 10 || this.y < a.y - 70) { this.dead = true; return; }
+    }
     if (this.owner === 'enemy') {
       const p = lv.player;
-      if (p && !p.dead && overlap(this, { x: p.x + 2, y: p.y + 2, w: p.w - 4, h: p.h - 4 })) {
-        if (p.hurt(this.damage, this.x + this.w / 2) && !this.pierce) return this.destroy();
+      this.grazeCd -= dt;
+      if (p && !p.dead) {
+        // zone vulnérable réduite au centre du corps (façon shoot'em up)
+        const core = { x: p.cx - 3, y: p.y + 9, w: 6, h: 12 };
+        if (overlap(this, core)) {
+          if (p.hurt(this.damage, this.x + this.w / 2) && !this.pierce) return this.destroy();
+        } else if (this.grazeCd <= 0 && Math.abs(this.x + this.w / 2 - p.cx) < this.w / 2 + 11 && Math.abs(this.y + this.h / 2 - p.cy) < this.h / 2 + 16) {
+          this.grazeCd = 0.4;
+          this.game.graze(this.x + this.w / 2, this.y + this.h / 2);
+        }
       }
     } else {
       const targets = lv.boss ? lv.enemies.concat(lv.boss.hurtTargets()) : lv.enemies;
@@ -5464,7 +5572,7 @@ class Projectile {
       }
       if (this.parry) {
         for (const q of lv.projectiles) {
-          if (q !== this && !q.dead && q.owner === 'enemy' && q.parryable && overlap(this, q)) q.destroy();
+          if (q !== this && !q.dead && q.owner === 'enemy' && (q.parryable || q.danmaku) && overlap(this, q)) q.destroy();
         }
       }
     }
@@ -5472,7 +5580,8 @@ class Projectile {
     this.sprite.setFrame(Math.floor(this.t * 12) % fr);
     this.sprite.setFlip(this.vx < 0);
     this.sprite.setPos(this.x - 2, this.y - 2);
-    if (Math.random() < 0.6) {
+    if (this.danmaku) return;
+    if (!this.danmaku && Math.random() < 0.6) {
       const p = this.game.fx.add.spawn(this.x + this.w / 2 + rand(-3, 3), this.y + this.h / 2 + rand(-3, 3), -this.vx * 0.1, -this.vy * 0.1 + rand(-10, 10), 0.35, this.kind === 'qiwave' ? 2 : 1, this.trail);
       if (p) p.shrink = true;
     }
@@ -5772,8 +5881,60 @@ class Boss extends Enemy {
     }
     return true;
   }
+  // ---- danmaku ----
+  shoot(color, x, y, ang, speed, o = {}) {
+    const lv = this.level;
+    const p = new Projectile(lv, 'b_' + color, x - 6, y - 6, Math.cos(ang) * speed, Math.sin(ang) * speed, 'enemy', 1);
+    p.danmaku = true;
+    p.walls = false;
+    p.parryable = false;
+    p.life = o.life || 8;
+    p.turn = o.turn || 0;
+    p.accel = o.accel || 0;
+    p.maxSpeed = o.max || 400;
+    p.gravity = o.gravity || 0;
+    lv.addProjectile(p);
+    return p;
+  }
+  ring(color, n, speed, off = 0, o = {}, x = this.cx, y = this.cy) {
+    for (let i = 0; i < n; i++) this.shoot(color, x, y, off + (i / n) * Math.PI * 2, speed, o);
+    this.game.audio.play('bullet');
+  }
+  aim(x = this.cx, y = this.cy) {
+    const p = this.player();
+    return Math.atan2(p.cy - y, p.cx - x);
+  }
+  fan(color, n, spread, speed, o = {}, x = this.cx, y = this.cy) {
+    const base = this.aim(x, y);
+    for (let i = 0; i < n; i++) this.shoot(color, x, y, base + (i - (n - 1) / 2) * spread, speed, o);
+    this.game.audio.play('bullet');
+  }
+  spellUpdate(dt, a) {
+    const g = this.game;
+    if (!a.def) {
+      const list = SPELLS[this.kind][this.phase - 1];
+      this.spellIdx = ((this.spellIdx == null ? -1 : this.spellIdx) + 1) % list.length;
+      a.def = list[this.spellIdx];
+      a.t = -0.9;
+      g.startSpell(a.def.name, a.def.dur, this);
+    }
+    this.spellMove(dt, a);
+    this.telegraph = a.t < 0;
+    if (a.t >= 0) a.def.run(this, a, dt);
+    if (a.t > a.def.dur) {
+      g.endSpell();
+      return true;
+    }
+    return false;
+  }
+  every(a, key, iv) {
+    if (a[key] == null) a[key] = 0;
+    if (a.t >= a[key]) { a[key] += iv; return true; }
+    return false;
+  }
   enterPhase2() {
     const g = this.game;
+    if (g.spell) g.endSpell(true);
     this.setState('PHASE_2');
     this.atk = null;
     this.vx = 0;
@@ -5787,6 +5948,7 @@ class Boss extends Enemy {
   }
   defeat() {
     const g = this.game;
+    if (g.spell) g.endSpell(true);
     this.dying = true;
     this.setState('DEAD');
     this.atk = null;
@@ -5821,7 +5983,10 @@ class Boss extends Enemy {
       case 'CHASE':
         this.chaseUpdate(dt);
         if (this.stateT > this.chaseTime() || (this.stateT > 0.3 && this.inRange())) {
-          const name = this.chooseAttack();
+          this.attackCount = (this.attackCount || 0) + 1;
+          const wantSpell = this.forceSpell || (this.phase === 1 ? this.attackCount % 4 === 3 : this.attackCount % 3 === 0);
+          const name = wantSpell && SPELLS[this.kind] ? 'spell' : this.chooseAttack();
+          this.forceSpell = false;
           this.lastAttack = name;
           this.atk = { name, t: 0, step: 0, n: 0 };
           this.setState(this.isSpecial(name) ? 'SPECIAL_ATTACK' : 'ATTACK');
@@ -5831,7 +5996,7 @@ class Boss extends Enemy {
       case 'ATTACK':
       case 'SPECIAL_ATTACK':
         this.atk.t += dt;
-        if (this.attackUpdate(dt, this.atk)) { this.atk = null; this.setState('IDLE'); }
+        if (this.atk.name === 'spell' ? this.spellUpdate(dt, this.atk) : this.attackUpdate(dt, this.atk)) { this.atk = null; this.setState('IDLE'); }
         break;
       case 'DAMAGED':
         this.damagedUpdate(dt);
@@ -5840,7 +6005,7 @@ class Boss extends Enemy {
       case 'PHASE_2':
         this.phase2Update(dt);
         if (Math.random() < 0.6) g.fx.add.spawn(this.cx + rand(-20, 20), this.cy + rand(-20, 20), rand(-40, 40), rand(-80, -20), 0.7, 2, pick([0xc46bff, 0xe0412b, 0xffe08a]));
-        if (this.stateT > 2) { this.phase = 2; this.onPhase2(); this.setState('IDLE'); }
+        if (this.stateT > 2) { this.phase = 2; this.forceSpell = true; this.spellIdx = null; this.onPhase2(); this.setState('IDLE'); }
         break;
       case 'DEAD':
         this.deadUpdate(dt);
@@ -5859,7 +6024,7 @@ class Boss extends Enemy {
   phase2Update(dt) { this.vx = 0; this.physics(dt); }
   chaseTime() { return 1.2; }
   inRange() { return false; }
-  isSpecial(name) { return ['summon', 'slam', 'tornado', 'feathers', 'breath', 'lightning', 'meteor'].includes(name); }
+  isSpecial(name) { return ['spell', 'summon', 'slam', 'tornado', 'feathers', 'breath', 'lightning', 'meteor'].includes(name); }
   onPhase2() {}
   pickWeighted(opts) {
     const list = opts.filter((o) => o[1] > 0 && (o[0] !== this.lastAttack || opts.length === 1));
@@ -6067,6 +6232,14 @@ class GuardianBoss extends Boss {
     }
     return true;
   }
+  spellMove(dt) {
+    const tx = this.level.arena.x + W / 2;
+    const dx = tx - this.cx;
+    this.facing = sign(this.aim() > -Math.PI / 2 && this.aim() < Math.PI / 2 ? 1 : -1);
+    this.vx = Math.abs(dx) > 6 ? approach(this.vx, sign(dx) * this.speed(), 300 * dt) : approach(this.vx, 0, 600 * dt);
+    this.physics(dt);
+    this.frame = Math.abs(this.vx) > 5 ? 2 + (Math.floor(this.animT * 6) % 2) : this.lion ? 6 : 4;
+  }
   spawnWaves() {
     const g = this.game;
     g.audio.play('slam');
@@ -6238,6 +6411,12 @@ class WindLordBoss extends Boss {
     }
     return true;
   }
+  spellMove(dt) {
+    this.steer(this.level.arena.x + W / 2 + Math.sin(this.animT * 0.8) * 30, this.level.arena.y + 46, 90, dt);
+    this.physics(dt);
+    this.frame = 4;
+    this.facing = sign(this.player().cx - this.cx) || 1;
+  }
   deadUpdate(dt) {
     this.vy = approach(this.vy, 30, 100 * dt);
     this.physics(dt);
@@ -6318,6 +6497,11 @@ class DragonKingBoss extends Boss {
     ]);
   }
   startAttack() {}
+  spellMove(dt) {
+    this.steer(this.level.arena.x + W / 2 + Math.sin(this.animT * 0.6) * 50, this.level.arena.y + 40 + Math.sin(this.animT * 1.3) * 10, 110, dt);
+    this.physics(dt);
+    this.mouth = 1;
+  }
   fire(kind, ang, speed) {
     const lv = this.level;
     const mx = this.cx + this.facing * 16, my = this.cy + 6;
@@ -6520,6 +6704,69 @@ class DragonKingBoss extends Boss {
   }
 }
 
+// Cartes de sort : [phase 1], [phase 2]. run(boss, état, dt) est appelé chaque pas.
+const SPELLS = {
+  general: [
+    [{ name: 'Signe du sabre « Cercle des mille lames »', dur: 7, run: (b, a) => {
+      if (b.every(a, 'r', 0.75)) { a.k = (a.k || 0) + 1; b.ring('red', 18, 68, (a.k % 2) * 0.17); }
+      if (b.every(a, 'f', 1.5)) b.fan('gold', 3, 0.2, 110);
+    } }],
+    [{ name: 'Signe martial « Tempête vermillon »', dur: 8, run: (b, a) => {
+      if (b.every(a, 's', 0.08)) { a.ang = (a.ang || 0) + 0.27; for (const k of [0, Math.PI]) b.shoot('red', b.cx, b.cy, a.ang + k, 82, { turn: 0.25 }); }
+      if (b.every(a, 'f', 1.3)) b.fan('gold', 5, 0.18, 105);
+    } },
+    { name: 'Signe impérial « Pluie de hallebardes »', dur: 8, run: (b, a) => {
+      const ar = b.level.arena;
+      if (b.every(a, 'r', 0.13)) b.shoot('violet', ar.x + 12 + Math.random() * 296, ar.y - 8, Math.PI / 2 + rand(-0.15, 0.15), 115);
+      if (b.every(a, 'g', 1.2)) b.ring('gold', 12, 48, Math.random());
+    } }],
+  ],
+  lion: [
+    [{ name: 'Signe de jade « Fleur de pierre »', dur: 7, run: (b, a) => {
+      if (b.every(a, 'r', 0.95)) { b.ring('jade', 14, 72, 0, { turn: 0.7 }); b.ring('jade', 14, 72, Math.PI / 14, { turn: -0.7 }); }
+    } }],
+    [{ name: 'Signe sacré « Éboulis de la montagne »', dur: 8, run: (b, a) => {
+      if (b.every(a, 'l', 0.22)) for (let i = 0; i < 3; i++) { const p = b.shoot('jade', b.cx, b.cy - 6, -Math.PI / 2 + rand(-0.9, 0.9), rand(150, 210), { gravity: 170 }); p.life = 6; }
+      if (b.every(a, 'f', 1.4)) b.fan('cyan', 5, 0.22, 100);
+    } },
+    { name: 'Signe gardien « Mandala de jade »', dur: 8, run: (b, a) => {
+      if (b.every(a, 's', 0.09)) {
+        a.ang = (a.ang || 0) + 0.21;
+        b.shoot('jade', b.cx, b.cy, a.ang, 70);
+        b.shoot('gold', b.cx, b.cy, -a.ang * 1.3 + 1, 64);
+      }
+    } }],
+  ],
+  wind: [
+    [{ name: 'Signe du vent « Éventail des quatre saisons »', dur: 7, run: (b, a) => {
+      if (b.every(a, 'f', 0.45)) { a.k = (a.k || 0) + 1; b.fan(a.k % 2 ? 'cyan' : 'white', 7, 0.17, 98); }
+    } }],
+    [{ name: 'Signe tourbillon « Danse des mille feuilles »', dur: 8, run: (b, a) => {
+      if (b.every(a, 's', 0.07)) { a.ang = (a.ang || 0) + 0.31; for (let k = 0; k < 3; k++) b.shoot('cyan', b.cx, b.cy, a.ang + (k * Math.PI * 2) / 3, 78, { turn: 0.45 }); }
+    } },
+    { name: 'Signe céleste « Rideau de nuages »', dur: 8, run: (b, a) => {
+      const ar = b.level.arena, p = b.player();
+      if (b.every(a, 'c', 0.15)) { a.k = (a.k || 0) + 1; b.shoot('white', ar.x + 10 + ((a.k * 53) % 300), ar.y - 8, Math.PI / 2, 88); }
+      if (b.every(a, 'h', 0.9)) { const left = Math.random() < 0.5; for (let i = 0; i < 3; i++) b.shoot('blue', left ? ar.x - 10 : ar.x + W + 10, p.cy + (i - 1) * 14, left ? 0 : Math.PI, 95); }
+    } }],
+  ],
+  dragon: [
+    [{ name: 'Signe du dragon « Perles célestes »', dur: 8, run: (b, a) => {
+      if (b.every(a, 'r', 0.65)) b.ring('gold', 20, 30, Math.random(), { accel: 65, max: 150 });
+      if (b.every(a, 'f', 1.2)) b.fan('red', 5, 0.2, 115);
+    } }],
+    [{ name: 'Signe du néant « Porte des Esprits »', dur: 9, run: (b, a) => {
+      if (b.every(a, 's', 0.09)) { a.ang = (a.ang || 0) + 0.17; for (let k = 0; k < 4; k++) b.shoot('violet', b.cx, b.cy, a.ang + (k * Math.PI) / 2, 70); }
+      if (b.every(a, 'z', 0.18)) { a.ang2 = (a.ang2 || 0) - 0.23; b.shoot('red', b.cx, b.cy, a.ang2, 60, { accel: 25, max: 120 }); }
+    } },
+    { name: 'Dernier souffle « Constellation déchue »', dur: 9, run: (b, a) => {
+      const ar = b.level.arena;
+      if (b.every(a, 'r', 0.11)) b.shoot('gold', ar.x + 10 + Math.random() * 300, ar.y - 8, Math.PI / 2 + rand(-0.3, 0.3), rand(70, 120), { turn: rand(-0.3, 0.3) });
+      if (b.every(a, 'g', 1.1)) b.ring('violet', 22, 55, Math.random());
+    } }],
+  ],
+};
+
 function createBoss(level, def, x, gy) {
   if (def.kind === 'general' || def.kind === 'lion') return new GuardianBoss(level, def.kind, x, gy, def.name);
   if (def.kind === 'wind') return new WindLordBoss(level, x, gy, def.name);
@@ -6582,6 +6829,14 @@ class Game {
     this.qiFlash = 0;
     this.combo = 0;
     this.comboT = 0;
+    this.timeStopped = false;
+    this.tp = 100;
+    this.tsCd = 0;
+    this.tickT = 0;
+    this.tpFlash = 0;
+    this.grazes = 0;
+    this.grazeT = 0;
+    this.spell = null;
     this.menuIndex = 0;
     this.sel = 0;
     this.stateT = 0;
@@ -6635,6 +6890,67 @@ class Game {
   }
   later(t, fn) { this.timers.push({ t, fn }); }
   ripple(x, y, strength = 1, speed = 220) { this.post.ripple(x, y, strength, speed); }
+  // ---- Arrêt du temps ----
+  toggleTimeStop() {
+    if (this.timeStopped) return this.resumeTime();
+    const p = this.level && this.level.player;
+    if (!p || p.dead || this.tsCd > 0) return;
+    if (this.tp < 15) {
+      this.audio.play('noQi');
+      this.tpFlash = 0.4;
+      return;
+    }
+    this.timeStopped = true;
+    this.tsCd = 0.3;
+    this.tickT = 0;
+    this.audio.play('timeStop');
+    this.ripple(p.cx, p.cy, 2.4, 340);
+    this.post.aberr = 2;
+    this.flash(0xffffff, 0.25);
+  }
+  resumeTime(silent = false) {
+    if (!this.timeStopped) return;
+    this.timeStopped = false;
+    this.tsCd = 0.35;
+    if (silent) return;
+    const p = this.level && this.level.player;
+    this.audio.play('timeResume');
+    if (p) this.ripple(p.cx, p.cy, 1.2, 260);
+    if (this.level) for (const q of this.level.projectiles) q.stopT = 0;
+  }
+  // Frôler un projectile sans être touché : recharge Qi et temps
+  graze(x, y) {
+    this.grazes++;
+    this.grazeT = 0.5;
+    this.gainQi(5);
+    this.tp = Math.min(100, this.tp + 4);
+    this.addScore(10);
+    this.audio.play('graze');
+    for (let i = 0; i < 4; i++) {
+      const pr = this.fx.add.spawn(x, y, rand(-60, 60), rand(-60, 60), 0.25, 1, pick([0xffffff, 0x7fe3ff]));
+      if (pr) pr.drag = 6;
+    }
+  }
+  // ---- Cartes de sort ----
+  startSpell(name, dur, boss) {
+    this.spell = { name, dur, t: 0, bonus: true, boss };
+    this.audio.play('spell');
+    this.flash(0xffffff, 0.3);
+    this.ripple(boss.cx, boss.cy, 1.4, 240);
+  }
+  endSpell(broken = false) {
+    const s = this.spell;
+    if (!s) return;
+    this.spell = null;
+    if (!broken && s.bonus) {
+      this.addScore(3000);
+      this.gainQi(this.maxQi);
+      this.tp = 100;
+      this.audio.play('bonus');
+      this.toast('BONUS DE SORT !  +3000', PAL.goldLight);
+    } else if (!broken) this.toast('SORT ÉCHOUÉ', PAL.ivoryDark);
+    if (this.level) for (const p of this.level.projectiles) if (p.danmaku && !p.dead) { p.dead = true; this.fx.add.spawn(p.x + 5, p.y + 5, 0, -30, 0.4, 2, 0xffe08a); }
+  }
   fade(dur, fn) {
     if (this.fadeJob) return;
     this.fadeJob = { dur, fn, phase: 'out', t: 0 };
@@ -6685,6 +7001,10 @@ class Game {
     this.hitstop = 0;
     this.slowmo = 0;
     this.audio.playMusic(this.level.def.music);
+    this.timeStopped = false;
+    this.tp = 100;
+    this.spell = null;
+    this.grazes = 0;
     this.titleCard = { text: this.level.def.name, sub: 'NIVEAU ' + (i + 1) + ' — ' + this.level.def.subtitle, t: 0 };
     this.setState('play');
   }
@@ -6719,6 +7039,7 @@ class Game {
   }
   onBossDefeated() {
     const lv = this.level;
+    this.resumeTime(true);
     lv.bossDefeated = true;
     this.audio.stopMusic();
     this.addScore(5000);
@@ -6791,6 +7112,13 @@ class Game {
     this.flashA = Math.max(0, this.flashA - dt * 2.2);
     this.post.update(dt);
     if (this.state === 'gameover') this.post.desat = Math.min(0.85, this.post.desat + dt * 1.6);
+    this.post.cold = this.timeStopped ? Math.min(1, this.post.cold + dt * 6) : Math.max(0, this.post.cold - dt * 4);
+    this.tpFlash -= dt;
+    this.grazeT -= dt;
+    if (['menu', 'controls', 'credits', 'levelclear', 'victory', 'gameover'].includes(this.state)) {
+      this.fx.normal.update(dt);
+      this.fx.add.update(dt);
+    }
     this.qiFlash -= dt;
     for (const t of this.toasts) t.t += dt;
     this.toasts = this.toasts.filter((t) => t.t < 2.8);
@@ -6853,7 +7181,19 @@ class Game {
     this.comboT -= sdt;
     if (this.comboT <= 0) this.combo = 0;
     if (!p.dead) this.qi = Math.min(this.maxQi, this.qi + CONFIG.QI_REGEN * sdt);
+    this.tsCd -= dt;
+    if (this.timeStopped) {
+      this.tp -= 17 * sdt;
+      this.tickT -= sdt;
+      if (this.tickT <= 0) { this.tickT = 0.5; this.audio.play('tick'); }
+      if (this.tp <= 0) { this.tp = 0; this.resumeTime(); }
+    } else this.tp = Math.min(100, this.tp + 2.5 * sdt);
+    if (this.spell) this.spell.t += sdt;
     lv.update(sdt);
+    if (!this.timeStopped) {
+      this.fx.normal.update(sdt);
+      this.fx.add.update(sdt);
+    }
     this.camera.update(sdt, p);
     // interactions : points de contrôle, panneaux, PNJ
     this.prompt = null;
@@ -7017,6 +7357,16 @@ class Game {
     for (let x = 16 + 4; x < 16 + bw; x += 5) rect(c, x, 15, 1, 5, 'rgba(13,16,40,0.7)');
     const costX = 16 + Math.round((this.qiCost / this.maxQi) * bw);
     rect(c, costX, 13, 1, 9, this.qi >= this.qiCost ? PAL.white : PAL.vermilion);
+    // jauge de temps (arrêt du temps)
+    disc(c, 8, 26, 3, this.timeStopped ? PAL.white : PAL.ivory);
+    rect(c, 8, 24, 1, 2, PAL.black);
+    rect(c, 8, 26, 2, 1, PAL.black);
+    rect(c, 15, 24, 62, 5, this.tpFlash > 0 && Math.floor(this.tpFlash * 20) % 2 ? PAL.vermilion : PAL.black);
+    rect(c, 16, 25, 60, 3, '#2a2418');
+    const tw = Math.round((this.tp / 100) * 60);
+    rect(c, 16, 25, tw, 3, this.timeStopped ? (Math.floor(this.stateT * 8) % 2 ? PAL.white : PAL.goldLight) : PAL.gold);
+    rect(c, 16 + 9, 24, 1, 5, PAL.ivoryDark);
+    if (this.timeStopped) drawText(c, 'TEMPS ARRÊTÉ', 80, 24, PAL.white);
     // fragments de Qi
     for (let i = 0; i < 4; i++) {
       const x = W / 2 - 22 + i * 12, y = 4;
@@ -7036,6 +7386,26 @@ class Game {
     if (this.combo >= 3) {
       const s = this.comboT > 1.8 ? 2 : 1;
       drawText(c, 'COMBO X' + this.combo, W - 5, 38, this.combo >= 10 ? PAL.gold : PAL.vermilion, s, 'right');
+    }
+    if (this.grazes > 0) drawText(c, 'GRAZE ' + this.grazes, W - 5, 50, this.grazeT > 0 ? PAL.white : PAL.qi, 1, 'right');
+    // carte de sort : bandeau d'annonce puis titre près de la barre du boss
+    const sp = this.spell;
+    if (sp) {
+      const name = sp.name;
+      if (sp.t < 1.6) {
+        const k = Math.min(1, sp.t / 0.25), out = Math.max(0, (sp.t - 1.3) / 0.3);
+        c.globalAlpha = 0.75 * (1 - out);
+        poly(c, [[W * (1 - k), 70], [W, 64], [W, 92], [W * (1 - k) - 20, 96]], PAL.darkRed);
+        c.globalAlpha = 1 - out;
+        drawText(c, 'CARTE DE SORT', W - 10, 70, PAL.goldLight, 1, 'right');
+        drawText(c, name, W - 10 + (1 - k) * 200, 82, PAL.white, 1, 'right');
+        c.globalAlpha = 1;
+      }
+      const left = Math.max(0, Math.ceil(sp.dur - sp.t));
+      const tw2 = textWidth(name) + 8;
+      rect(c, W - tw2 - 4, H - 34, tw2 + 4, 9, 'rgba(18,10,16,0.75)');
+      drawText(c, name, W - 6, H - 32, sp.bonus ? PAL.goldLight : PAL.ivoryDark, 1, 'right', null);
+      drawText(c, String(left), 6, H - 32, left <= 3 ? PAL.vermilion : PAL.ivory, 1, 'left');
     }
     // barre de vie du boss
     const b = lv && lv.boss;
@@ -7152,16 +7522,18 @@ class Game {
       ['ESPACE', 'SAUTER  (X2 : DOUBLE SAUT)'],
       ['ESPACE CONTRE UN MUR', 'REBOND MURAL (LIANES)'],
       ['↓ + ESPACE', 'DESCENDRE D\'UN PONT'],
-      ['J', 'ATTAQUE (COMBO 3 COUPS)'],
-      ['K', 'VAGUE DE QI (COÛTE DU QI)'],
+      ['J', 'ATTAQUE AU SABRE (COMBO 3 COUPS)'],
+      ['K (MAINTENIR) / ↑+K', 'DAGUES DE QI'],
+      ['I', 'VAGUE DE QI (30 QI)'],
+      ['L', 'ARRÊT DU TEMPS (L POUR REPARTIR)'],
       ['SHIFT', 'DASH INVINCIBLE'],
       ['E / ↑', 'LIRE / PARLER'],
       ['ÉCHAP / P', 'PAUSE'],
       ['M', 'COUPER LE SON'],
     ];
     rows.forEach(([k, v], i) => {
-      drawText(c, k, 44, 44 + i * 10, PAL.goldLight);
-      drawText(c, v, 150, 44 + i * 10, PAL.ivory);
+      drawText(c, k, 40, 40 + i * 9, PAL.goldLight);
+      drawText(c, v, 140, 40 + i * 9, PAL.ivory);
     });
     drawText(c, 'ENTRÉE : RETOUR', W / 2, H - 24, PAL.ivoryDark, 1, 'center');
   }

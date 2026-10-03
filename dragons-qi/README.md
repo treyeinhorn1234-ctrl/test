@@ -31,14 +31,27 @@ Fichiers :
 | Déplacement | ← → ou A / D (Q / D en AZERTY) |
 | Saut, double saut, saut mural | Espace |
 | Descendre d'un pont | ↓ + Espace |
-| Attaque (combo 3 coups) | J |
-| Vague de Qi | K |
+| Sabre (combo 3 coups) | J |
+| Dagues de Qi (rafale) | K maintenu, ↑+K en diagonale |
+| Vague de Qi | I |
+| Arrêt du temps | L (L à nouveau pour relancer) |
 | Dash (invincible) | Shift |
 | Lire / parler | E ou ↑ |
 | Pause | Échap ou P |
 | Couper le son | M |
 
 ## Contenu
+
+**Gameplay inspiré de *Touhou Luna Nights*** :
+- **Arrêt du temps** (jauge d'horloge) : ennemis, boss, projectiles, plateformes et décor se
+  figent, l'écran passe en gris bleuté ; vos dagues s'immobilisent en l'air et repartent
+  quand le temps reprend ; **l'eau gèle et devient praticable** (attention à la reprise !).
+- **Dagues de Qi** lancées en rafale (consomment du Qi), en plus du sabre et de la vague de Qi.
+- **Graze** : frôler un projectile sans être touché recharge Qi et temps (compteur GRAZE).
+  Seul le cœur du corps est vulnérable aux projectiles, comme dans un shoot'em up.
+- **Cartes de sort** : chaque boss lance des motifs de danmaku nommés (anneaux, spirales
+  courbes, rideaux, pluies d'étoiles), une en phase 1 et deux en phase 2 ; survivre sans
+  être touché donne un **bonus de sort** (+3000, Qi et temps pleins).
 
 - **4 niveaux** : Forêt de bambous, Temple oublié, Montagne céleste, Royaume du dragon,
   chacun avec ses ennemis, ses pièges, ses secrets, un PNJ et un boss.
