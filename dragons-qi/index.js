@@ -19,8 +19,8 @@
 // 1. CONFIGURATION
 // =========================================================================
 const CONFIG = {
-  W: 320,
-  H: 180,
+  W: 480,
+  H: 270,
   TILE: 16,
   FIXED_DT: 1 / 60,
   GRAVITY: 980,
@@ -48,6 +48,10 @@ const CONFIG = {
   ],
 };
 const W = CONFIG.W, H = CONFIG.H, TILE = CONFIG.TILE;
+// les cartes sont dessinées sur 15 rangées ; on ajoute du ciel au-dessus pour remplir l'écran
+const MAP_PAD = 3, ROWS = 15 + MAP_PAD;
+// hauteur de référence des écrans de menu (centrés verticalement)
+const DH = 180, OY = Math.round((H - DH) / 2);
 
 // Palette principale (rouge sombre, vermillon, or, noir, bambou, nuit, violet, ivoire)
 const PAL = {
@@ -366,6 +370,12 @@ class AudioManager {
       case 'gate': this.noise(0.6, 0.25, 300, 'lowpass', 80); this.tone(80, 0.5, 'square', 0.08, 50); break;
       case 'talk': this.tone(rand(500, 700), 0.04, 'square', 0.03); break;
       case 'dagger': this.noise(0.05, 0.08, 7000, 'highpass'); this.tone(1400, 0.04, 'square', 0.025, 900); break;
+      case 'iai':
+        this.noise(0.25, 0.3, 9000, 'highpass');
+        this.tone(2400, 0.25, 'sawtooth', 0.05, 300);
+        this.tone(70, 0.4, 'sine', 0.3, 40, 0.3);
+        break;
+      case 'charged': this.tone(880, 0.3, 'triangle', 0.08, 1760); this.tone(1320, 0.4, 'sine', 0.05, 0, 0.05); break;
       case 'graze': this.tone(2200, 0.03, 'square', 0.03); break;
       case 'tick': this.tone(1500, 0.02, 'square', 0.04); this.tone(750, 0.03, 'triangle', 0.04, 0, 0.02); break;
       case 'timeStop':
@@ -1164,6 +1174,146 @@ class PostFX {
   }
 }
 
+// ---- Traînée de lame (ruban géométrique, pixelisé par le rendu 480×270) ----
+const TRAIL_VS = `
+attribute vec2 tuv;
+varying vec2 vT;
+void main() { vT = tuv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const TRAIL_FS = `
+uniform float head;
+uniform float tail;
+uniform float alpha;
+uniform float mode;
+uniform vec3 cA;
+uniform vec3 cB;
+uniform vec3 cC;
+varying vec2 vT;
+void main() {
+  float d = head - vT.x;
+  if (d < 0.0 || d > tail) discard;
+  float k = 1.0 - d / tail;
+  float thick = 0.12 + 0.88 * k;
+  float e = mode > 0.5 ? 1.0 - abs(vT.y * 2.0 - 1.0) : vT.y;
+  if (e < 1.0 - thick) discard;
+  float edge = (e - (1.0 - thick)) / max(thick, 0.001);
+  vec3 c = edge > 0.78 ? cC : (edge > 0.42 ? cB : cA);
+  float a = floor((0.3 + 0.7 * k) * 4.0 + 0.5) / 4.0;
+  gl_FragColor = vec4(c, a * alpha);
+}`;
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+class SlashTrail {
+  // o : { arc: [r0, r1, a0, a1] | line: [len, width], flip, dur, fade, tail, colors: [intérieur, milieu, bord], follow() → [x, y] }
+  constructor(parent, o) {
+    const N = 36;
+    const pos = new Float32Array((N + 1) * 2 * 3), tuv = new Float32Array((N + 1) * 2 * 2), idx = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      let ix, iy, ox, oy;
+      if (o.arc) {
+        const [r0, r1, a0, a1] = o.arc;
+        const a = a0 + (a1 - a0) * u;
+        let dx = Math.cos(a), dy = Math.sin(a);
+        if (o.flip) dx = -dx;
+        ix = dx * r0; iy = dy * r0; ox = dx * r1; oy = dy * r1;
+      } else {
+        const [len, wd] = o.line;
+        const x = len * u * (o.flip ? -1 : 1), slope = o.slope || 0;
+        ix = x; iy = -wd / 2 + x * slope; ox = x; oy = wd / 2 + x * slope;
+      }
+      pos.set([ix, -iy, 0, ox, -oy, 0], i * 6);
+      tuv.set([u, 0, u, 1], i * 4);
+      if (i < N) { const b = i * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('tuv', new THREE.BufferAttribute(tuv, 2));
+    g.setIndex(idx);
+    const cols = (o.colors || ['#7fe3ff', '#d8f6ff', '#ffffff']).map((c) => new THREE.Color(hexNum(c)));
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: { head: { value: 0 }, tail: { value: o.tail || 0.7 }, alpha: { value: 1 }, mode: { value: o.line ? 1 : 0 }, cA: { value: cols[0] }, cB: { value: cols[1] }, cC: { value: cols[2] } },
+      vertexShader: TRAIL_VS,
+      fragmentShader: TRAIL_FS,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.mesh = new THREE.Mesh(g, this.mat);
+    this.mesh.renderOrder = o.order || 15;
+    this.mesh.frustumCulled = false;
+    this.geo = g;
+    this.o = o;
+    this.t = 0;
+    this.dur = o.dur || 0.12;
+    this.fade = o.fade || 0.16;
+    this.parent = parent;
+    parent.add(this.mesh);
+    this.step(0);
+  }
+  get total() { return this.dur + this.fade; }
+  step(dt) {
+    this.t += dt;
+    const p = clamp(this.t / this.dur, 0, 1);
+    const u = this.mat.uniforms;
+    u.head.value = easeOut(p) * (1 + u.tail.value);
+    u.alpha.value = this.t <= this.dur ? 1 : Math.max(0, 1 - (this.t - this.dur) / this.fade);
+    if (this.t > this.dur) u.head.value = 1 + u.tail.value * (0.4 + 0.6 * ((this.t - this.dur) / this.fade));
+    const [x, y] = this.o.follow ? this.o.follow() : [this.o.x, this.o.y];
+    this.mesh.position.set(Math.round(x), -Math.round(y), 0);
+  }
+  dispose() {
+    this.parent.remove(this.mesh);
+    this.mat.dispose();
+    this.geo.dispose();
+  }
+}
+
+// Géométrie centrée (effets qui tournent : étoiles d'impact, entailles)
+const CGEO_CACHE = new Map();
+function centerGeo(w, h) {
+  const k = w + 'x' + h;
+  if (!CGEO_CACHE.has(k)) CGEO_CACHE.set(k, new THREE.PlaneGeometry(w, h));
+  return CGEO_CACHE.get(k);
+}
+// Étoile d'impact 40×40 (5 frames) et entaille 72×9 (4 frames)
+function drawHitStar(ctx, f) {
+  const c = 20, R = [9, 15, 18, 19, 19][f];
+  if (f < 3) {
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2 + 0.2, L = k % 2 ? R : R * 0.55;
+      line(ctx, c, c, c + Math.cos(a) * L, c + Math.sin(a) * L, '#ffffff', f === 0 ? 2 : 1);
+    }
+    disc(ctx, c, c, [5, 3, 1][f], '#ffffff');
+  }
+  for (let a = 0; a < Math.PI * 2; a += 0.12) {
+    if (f >= 1 && (f < 3 || a % 0.36 < 0.12)) rect(ctx, c + Math.cos(a) * R, c + Math.sin(a) * R, 1, 1, '#ffffff');
+  }
+}
+function drawCutLine(ctx, f) {
+  const half = [12, 34, 35, 35][f], th = [1, 3, 2, 1][f];
+  rect(ctx, 36 - half, 4 - Math.floor(th / 2), half * 2, th, '#ffffff');
+  if (f === 1) { rect(ctx, 36 - half - 2, 4, 2, 1, '#ffffff'); rect(ctx, 36 + half, 4, 2, 1, '#ffffff'); }
+}
+// Effet ponctuel centré, orientable
+function spawnFx(level, sheet, x, y, opts = {}) {
+  const s = new Sprite(level.group, sheet, opts.order || 17, !!opts.additive);
+  s.mesh.geometry = centerGeo(sheet.fw, sheet.fh);
+  s.mesh.position.set(Math.round(x), -Math.round(y), 0);
+  s.mesh.rotation.z = opts.rot || 0;
+  if (opts.scale) s.mesh.scale.set(opts.scale, opts.scale, 1);
+  if (opts.tint) s.setTint(opts.tint);
+  const dur = opts.dur || 0.2;
+  const e = { sprite: s, life: (opts.delay || 0) + dur, t: 0 };
+  s.visible = !opts.delay;
+  e.update = (ee) => {
+    const t = ee.t - (opts.delay || 0);
+    s.visible = t >= 0;
+    if (t >= 0) s.setFrame(Math.min(sheet.count - 1, Math.floor((t / dur) * sheet.count)));
+  };
+  level.effects.push(e);
+  return e;
+}
+
 // =========================================================================
 // 6. GÉNÉRATION DES GRAPHISMES (pixel art procédural)
 // =========================================================================
@@ -1208,304 +1358,423 @@ const SPIRIT_PALETTES = {
   void: { body: '#8a3ac8', light: '#e0a8ff', dark: '#3a1060', eye: '#ffde4a' },
 };
 
-// ---- Petit démon (BasicDemon) 20×20 : 0-3 marche, 4 bond, 5 touché ----
-function drawImp(ctx, f, p) {
-  const bob = f < 4 ? [0, 1, 0, 1][f] : 0;
-  const lunge = f === 4 ? 2 : 0;
-  const hurt = f === 5;
-  const by = 12 + bob - (f === 4 ? 2 : 0);
-  // queue
-  line(ctx, 4, by + 1, 2, by - 3, p.dark);
-  rect(ctx, 1, by - 5, 2, 2, p.dark);
-  // jambes
-  const lg = [[0, 0], [-1, 1], [0, 0], [1, -1]][f % 4];
-  if (f === 4) {
-    rect(ctx, 5, by + 3, 3, 2, p.dark);
-    rect(ctx, 12, by + 4, 3, 2, p.dark);
-  } else {
-    rect(ctx, 7 + lg[0], by + 4, 2, 3, p.dark);
-    rect(ctx, 11 + lg[1], by + 4, 2, 3, p.dark);
+
+
+
+// ---- Finition « style du héros » : éclairage haut-gauche + contour coloré ----
+// Les pixels exposés en haut à gauche s'éclaircissent, ceux du bas à droite
+// s'assombrissent ; le contour prend la teinte (assombrie) de la matière voisine.
+function stylizeCanvas(ctx, w, h, outlineK = 0.42) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data, out = new Uint8ClampedArray(d);
+  const op = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] >= 128;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] >= 128) {
+        out[i + 3] = 255;
+        let k = 1;
+        if (!op(x - 1, y - 1) || !op(x, y - 1)) k = 1.22;
+        else if (!op(x + 1, y + 1) || !op(x, y + 1)) k = 0.74;
+        else if (!op(x + 1, y)) k = 0.85;
+        out[i] = Math.min(255, d[i] * k + (k > 1 ? 10 : 0));
+        out[i + 1] = Math.min(255, d[i + 1] * k + (k > 1 ? 10 : 0));
+        out[i + 2] = Math.min(255, d[i + 2] * k + (k > 1 ? 12 : 0));
+        continue;
+      }
+      out[i + 3] = 0;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (op(x + dx, y + dy)) {
+          const j = ((y + dy) * w + x + dx) * 4;
+          r += d[j]; g += d[j + 1]; b += d[j + 2]; n++;
+        }
+      }
+      if (n) {
+        out[i] = (r / n) * outlineK;
+        out[i + 1] = (g / n) * outlineK;
+        out[i + 2] = (b / n) * outlineK + 8;
+        out[i + 3] = 255;
+      }
+    }
   }
-  // corps
-  ellipse(ctx, 10 + lunge, by, 6, 5, p.body);
-  rect(ctx, 6 + lunge, by - 4, 6, 1, p.light);
-  ellipse(ctx, 11 + lunge, by + 2, 3, 2, p.belly);
-  // cornes
-  rect(ctx, 6 + lunge, by - 6, 1, 2, p.horn);
-  rect(ctx, 5 + lunge, by - 7, 1, 1, p.horn);
-  rect(ctx, 13 + lunge, by - 6, 1, 2, p.horn);
-  rect(ctx, 14 + lunge, by - 7, 1, 1, p.horn);
-  // yeux + gueule
-  if (hurt) {
-    rect(ctx, 11, by - 2, 1, 1, PAL.white);
-    rect(ctx, 13, by - 2, 1, 1, PAL.white);
-  } else {
-    rect(ctx, 11 + lunge, by - 2, 2, 2, p.eye);
-    rect(ctx, 14 + lunge, by - 2, 1, 2, p.eye);
-    rect(ctx, 12 + lunge, by - 2, 1, 1, PAL.black);
-  }
-  rect(ctx, 12 + lunge, by + 1, 4, 1, PAL.black);
-  rect(ctx, 13 + lunge, by + 2, 1, 1, PAL.white);
-  rect(ctx, 15 + lunge, by + 2, 1, 1, PAL.white);
-  // griffes
-  if (f === 4) {
-    rect(ctx, 16, by - 1, 3, 2, p.dark);
-    rect(ctx, 18, by - 2, 1, 1, PAL.white);
-  } else rect(ctx, 15 + lunge, by + 1, 2, 2, p.dark);
+  ctx.putImageData(new ImageData(out, w, h), 0, 0);
+}
+function buildStyledSheet(fw, fh, count, drawFrame, k) {
+  const sheet = buildSheet(fw, fh, count, drawFrame, null);
+  const ctx = sheet.canvas.getContext('2d');
+  stylizeCanvas(ctx, sheet.canvas.width, sheet.canvas.height, k);
+  sheet.tex.needsUpdate = true;
+  return sheet;
 }
 
-// ---- Guerrier humanoïde 32×32 : 0-3 marche, 4 armé, 5 frappe, 6 touché, 7 sort ----
-function drawWarrior(ctx, f, p, style) {
-  const bob = f < 4 ? f % 2 : 0;
-  const lean = f === 5 ? 2 : f === 4 ? -1 : f === 6 ? -2 : 0;
-  const by = bob;
-  const cx = 12 + lean;
-  const legs = [[-2, 2], [0, 0], [2, -2], [0, 0]];
-  const [l1, l2] = f < 4 ? legs[f] : f === 5 ? [3, -3] : f === 4 ? [-1, 2] : [-2, 1];
-  const robe = style.robe;
-  // cape / cheveux fantômes
-  if (style.cape) poly(ctx, [[cx - 3, 10 + by], [cx - 1, 10 + by], [cx - 4, 25], [cx - 9 - bob, 26]], p.clothDark);
-  // jambes
-  rect(ctx, cx - 3 + l2, 21, 3, 7, p.pantsDark);
-  rect(ctx, cx - 3 + l2, 28, 4, 2, p.boot);
-  rect(ctx, cx + l1, 21, 3, 7, p.pants);
-  rect(ctx, cx + l1, 28, 4, 2, p.boot);
-  // longue tunique
-  if (robe) poly(ctx, [[cx - 5, 15 + by], [cx + 5, 15 + by], [cx + 7, 28], [cx - 7, 28]], p.cloth);
-  else poly(ctx, [[cx - 5, 16 + by], [cx + 5, 16 + by], [cx + 6, 25], [cx - 6, 25]], p.cloth);
-  rect(ctx, cx - (robe ? 7 : 6), robe ? 27 : 24, robe ? 14 : 12, 1, p.clothDark);
-  rect(ctx, cx - 1, 18 + by, 2, robe ? 9 : 6, p.clothDark);
-  // torse
-  rect(ctx, cx - 4, 9 + by, 9, 8, p.armor);
-  if (!robe) {
-    rect(ctx, cx - 4, 11 + by, 9, 1, p.armorDark);
-    rect(ctx, cx - 4, 14 + by, 9, 1, p.armorDark);
-    rect(ctx, cx - 6, 9 + by, 3, 3, p.armor);
-    rect(ctx, cx - 6, 11 + by, 3, 1, p.trim);
+// ---- Squelette articulé pour les guerriers (cuisses, tibias, bras, tête, arme) ----
+// Angles en radians : 0 = vers le bas, positif = vers l'avant (le personnage regarde à droite).
+const limbEnd = (x, y, a, l) => [x + Math.sin(a) * l, y + Math.cos(a) * l];
+function limb(ctx, x0, y0, x1, y1, w, mid, dark, light) {
+  const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+  const r = w / 2;
+  for (let i = 0; i <= n; i++) ellipse(ctx, Math.round(lerp(x0, x1, i / n) + 0.5), Math.round(lerp(y0, y1, i / n) + 0.5), Math.max(0, Math.round(r - 0.3)), Math.max(0, Math.round(r - 0.3)), dark);
+  for (let i = 0; i <= n; i++) ellipse(ctx, Math.round(lerp(x0, x1, i / n)), Math.round(lerp(y0, y1, i / n)), Math.max(0, Math.round(r - 0.8)), Math.max(0, Math.round(r - 0.8)), mid);
+  if (light && w >= 3) line(ctx, x0 - r * 0.5, y0 - 0.5, x1 - r * 0.5, y1 - 0.5, light);
+}
+function ramp3(c) { return [shade(c, 0.28), c, shade(c, -0.38)]; }
+
+// Poses : chaque entrée décrit une image (voir WARRIOR_FRAMES)
+function warriorPose(f) {
+  const P = { bob: 0, lean: 0, thF: 0.1, shF: 0, thB: -0.1, shB: 0, arF: 0.5, faF: 1.2, arB: -0.2, faB: 0.3, wpn: 1.2, head: 0, skirt: 0, smear: 0, cast: 0, hurt: 0 };
+  if (f < 4) { // repos (respiration)
+    P.bob = f === 1 || f === 2 ? 1 : 0;
+    P.arF = 0.45; P.faF = 1.0 + (f % 2) * 0.05;
+  } else if (f < 12) { // marche (8 images)
+    const ph = ((f - 4) / 8) * Math.PI * 2;
+    P.thF = Math.sin(ph) * 0.55;
+    P.shF = P.thF - Math.max(0, Math.cos(ph)) * 0.75;
+    P.thB = -Math.sin(ph) * 0.55;
+    P.shB = P.thB - Math.max(0, -Math.cos(ph)) * 0.75;
+    P.bob = Math.abs(Math.sin(ph)) > 0.7 ? 0 : 1;
+    P.arF = 0.35 - Math.sin(ph) * 0.35; P.faF = 1.0;
+    P.arB = Math.sin(ph) * 0.4; P.faB = 0.4;
+    P.skirt = Math.sin(ph) * 1.5;
+    P.lean = 0.06;
+  } else if (f < 15) { // armé : l'arme monte derrière la tête
+    const k = (f - 12 + 1) / 3;
+    P.lean = -0.12 * k; P.thF = 0.25; P.shF = 0.1; P.thB = -0.3; P.shB = -0.2;
+    P.arF = lerp(0.5, Math.PI - 0.5, k); P.faF = lerp(1.2, Math.PI + 0.3, k); P.wpn = lerp(1.2, 0.4, k);
+    P.arB = -0.4 * k; P.faB = 0.2;
+  } else if (f < 18) { // frappe en trois temps, avec traînée
+    const k = f - 15;
+    P.lean = [0.25, 0.32, 0.18][k]; P.thF = 0.6; P.shF = 0.25; P.thB = -0.55; P.shB = -0.45; P.bob = 1;
+    P.arF = [2.3, 1.5, 0.9][k]; P.faF = [2.0, 1.3, 0.6][k]; P.wpn = [0.3, 0.1, 0.0][k];
+    P.arB = -0.7; P.faB = -0.2;
+    P.smear = [1, 2, 0][k];
+  } else if (f < 20) { // touché
+    P.hurt = 1; P.lean = -0.3 - (f - 18) * 0.1; P.thF = -0.2; P.thB = 0.25; P.shB = 0.5;
+    P.arF = -0.6; P.faF = -1.0; P.arB = -1.2; P.faB = -1.6; P.head = -1;
+  } else { // sort (incantation)
+    const k = f - 20;
+    P.arF = 1.45; P.faF = 1.55; P.arB = 0.9 + k * 0.1; P.faB = 1.3; P.cast = k + 1; P.lean = 0.05; P.thF = 0.2; P.thB = -0.2;
+  }
+  return P;
+}
+const WARRIOR_FRAMES = 23; // 0-3 repos, 4-11 marche, 12-14 armé, 15-17 frappe, 18-19 touché, 20-22 sort
+
+function drawRigWarrior(ctx, f, p, style, S = 1, FW = 64, FH = 48) {
+  const P = warriorPose(f);
+  const ground = FH - 3;
+  const cx = Math.round(FW * 0.4);
+  const hipY = ground - 17 * S + P.bob;
+  const hipX = cx + P.lean * 4 * S;
+  const neckX = hipX + Math.sin(P.lean) * 13 * S, neckY = hipY - Math.cos(P.lean) * 13 * S;
+  const sk = ramp3(p.skin), ar = ramp3(p.armor), cl = ramp3(p.cloth), pa = ramp3(p.pants), mt = ramp3(p.metal);
+  // jambe arrière
+  let [kx, ky] = limbEnd(hipX - 1, hipY, P.thB, 8.5 * S);
+  let [fx, fy] = limbEnd(kx, ky, P.shB, 8.5 * S);
+  limb(ctx, hipX - 1, hipY, kx, ky, 4 * S, pa[2], shade(p.pants, -0.6), null);
+  limb(ctx, kx, ky, fx, fy, 3.4 * S, pa[2], shade(p.pants, -0.6), null);
+  rect(ctx, fx - 1.5 * S, fy - 1, 5 * S, 2.5 * S, shade(p.boot, -0.2));
+  // bras arrière
+  const shBX = neckX - 2 * S, shBY = neckY + 2 * S;
+  let [ex, ey] = limbEnd(shBX, shBY, P.arB, 6.5 * S);
+  let [hx, hy] = limbEnd(ex, ey, P.faB, 6 * S);
+  limb(ctx, shBX, shBY, ex, ey, 3.5 * S, ar[2], shade(p.armor, -0.6), null);
+  limb(ctx, ex, ey, hx, hy, 3 * S, sk[2], shade(p.skin, -0.6), null);
+  // cape
+  if (style.cape) {
+    const sw = P.skirt + (f >= 4 && f < 12 ? 1 : 0);
+    poly(ctx, [[neckX - 3 * S, neckY + 1], [neckX + 1 * S, neckY + 1], [hipX - 4 * S - sw, ground - 3], [hipX - 12 * S - sw * 2, ground - 2]], cl[2]);
+    line(ctx, neckX - 2 * S, neckY + 3, hipX - 9 * S - sw * 2, ground - 3, shade(p.cloth, -0.55));
+  }
+  // jupe / longue tunique (plis)
+  const skirtL = style.robe ? 15 * S : 10 * S;
+  const sx = P.skirt;
+  poly(ctx, [[hipX - 5 * S, hipY - 3 * S], [hipX + 5 * S, hipY - 3 * S], [hipX + 7 * S + sx, hipY + skirtL], [hipX - 7 * S + sx * 0.5, hipY + skirtL]], cl[1]);
+  for (let i = -1; i <= 1; i++) line(ctx, hipX + i * 3 * S, hipY, hipX + i * 4 * S + sx, hipY + skirtL - 1, cl[2]);
+  rect(ctx, hipX - 7 * S + sx * 0.5, hipY + skirtL - 1, 14 * S, 1, shade(p.cloth, -0.5));
+  rect(ctx, hipX - 4 * S, hipY - 2 * S, 2, skirtL, cl[0]);
+  // jambe avant
+  [kx, ky] = limbEnd(hipX + 1, hipY, P.thF, 8.5 * S);
+  [fx, fy] = limbEnd(kx, ky, P.shF, 8.5 * S);
+  if (!style.robe || f >= 4) {
+    limb(ctx, hipX + 1, hipY + 2, kx, ky, 4 * S, pa[1], shade(p.pants, -0.45), pa[0]);
+    limb(ctx, kx, ky, fx, fy, 3.4 * S, pa[1], shade(p.pants, -0.45), pa[0]);
+  }
+  rect(ctx, fx - 1.5 * S, fy - 1.5, 5.5 * S, 3 * S, p.boot);
+  rect(ctx, fx - 1.5 * S, fy - 1.5, 5.5 * S, 1, shade(p.boot, 0.3));
+  // torse : cuirasse lamellaire ou robe
+  const tw = 5 * S;
+  const tpts = [[neckX - tw, neckY], [neckX + tw, neckY], [hipX + tw - 0.5, hipY - 2], [hipX - tw + 0.5, hipY - 2]];
+  poly(ctx, tpts, ar[1]);
+  poly(ctx, [[neckX - tw, neckY], [neckX - tw + 3, neckY], [hipX - tw + 3, hipY - 2], [hipX - tw + 0.5, hipY - 2]], ar[0]);
+  poly(ctx, [[neckX + tw - 2, neckY], [neckX + tw, neckY], [hipX + tw - 0.5, hipY - 2], [hipX + tw - 2.5, hipY - 2]], ar[2]);
+  if (!style.robe) {
+    for (let k = 1; k < 4; k++) {
+      const t = k / 4;
+      const yy = lerp(neckY, hipY - 2, t), xx = lerp(neckX, hipX, t);
+      line(ctx, xx - tw + 1, yy, xx + tw - 1, yy, ar[2]);
+      for (let q = -tw + 2; q < tw - 1; q += 2) rect(ctx, xx + q, yy + 1, 1, 1, ar[0]);
+    }
+    ellipse(ctx, neckX - tw + 1, neckY + 2, 3 * S, 2.5 * S, ar[1]);
+    rect(ctx, neckX - tw - 1, neckY + 3, 4 * S, 1, p.trim);
   } else {
-    line(ctx, cx - 2, 9 + by, cx + 2, 15 + by, p.armorDark);
+    line(ctx, neckX - 2, neckY + 1, hipX + 3, hipY - 3, ar[2]);
+    line(ctx, neckX - 1, neckY + 1, hipX + 4, hipY - 3, shade(p.trim, 0.1));
   }
   // ceinture
-  rect(ctx, cx - 4, 16 + by, 9, 2, p.trim);
-  rect(ctx, cx, 16 + by, 2, 2, PAL.gold);
+  rect(ctx, hipX - tw, hipY - 3, tw * 2, 2.5 * S, p.trim);
+  rect(ctx, hipX - 1, hipY - 3, 3 * S, 2.5 * S, PAL.gold);
+  rect(ctx, hipX, hipY - 3, 1, 1, PAL.goldLight);
   // tête
-  rect(ctx, cx - 2, 2 + by, 6, 7, p.skin);
-  rect(ctx, cx + 3, 5 + by, 1, 2, p.skin);
-  if (f === 6) rect(ctx, cx + 1, 5 + by, 2, 1, PAL.black);
-  else {
-    rect(ctx, cx + 1, 5 + by, 2, 1, p.eye);
-    rect(ctx, cx + 3, 5 + by, 1, 1, p.eye);
+  const hdx = neckX + 1 + P.head, hdy = neckY - 5 * S;
+  ellipse(ctx, hdx, hdy, 3.5 * S, 4 * S, sk[1]);
+  rect(ctx, hdx - 3 * S, hdy - 1, 2, 4 * S, sk[2]);
+  rect(ctx, hdx + 3 * S - 1, hdy, 1, 3, sk[0]);
+  if (P.hurt) {
+    rect(ctx, hdx + 1, hdy - 1, 3, 1, PAL.black);
+  } else {
+    rect(ctx, hdx + 1, hdy - 1, 3, 1, shade(p.skin, -0.6));
+    rect(ctx, hdx + 2, hdy, 2, 1, p.eye);
+    rect(ctx, hdx + 3, hdy, 1, 1, shade(p.eye, 0.5));
   }
-  rect(ctx, cx + 1, 7 + by, 2, 1, shade(p.skin, -0.35));
-  // couvre-chef
+  rect(ctx, hdx + 1, hdy + 2 * S, 2, 1, shade(p.skin, -0.45));
+  const hr = 4 * S;
   switch (style.hat) {
     case 'helmet':
-      rect(ctx, cx - 3, 1 + by, 8, 3, p.armor);
-      rect(ctx, cx - 3, 3 + by, 8, 1, p.trim);
-      rect(ctx, cx - 3, 4 + by, 2, 4, p.armor);
-      rect(ctx, cx, 0 + by, 2, 1, p.trim);
-      break;
-    case 'bald':
-      rect(ctx, cx - 1, 2 + by, 3, 1, shade(p.skin, 0.25));
-      for (let i = 0; i < 5; i++) rect(ctx, cx - 3 + i * 2, 10 + by + (i % 2), 1, 1, PAL.gold);
-      break;
-    case 'stone':
-      rect(ctx, cx - 3, 0 + by, 8, 3, p.armorDark);
-      rect(ctx, cx - 4, 2 + by, 10, 1, p.armor);
-      line(ctx, cx - 3, 10 + by, cx, 14 + by, p.trim);
-      line(ctx, cx + 3, 18 + by, cx + 1, 22, p.trim);
-      break;
-    case 'horned':
-      rect(ctx, cx - 3, 1 + by, 8, 2, p.armor);
-      rect(ctx, cx - 3, 0 + by, 1, 1, p.metalLight);
-      rect(ctx, cx + 4, 0 + by, 1, 1, p.metalLight);
-      rect(ctx, cx - 4, 1 + by, 1, 1, p.metalLight);
-      rect(ctx, cx + 5, 1 + by, 1, 1, p.metalLight);
-      break;
-    case 'crown':
-      rect(ctx, cx - 3, 1 + by, 8, 3, p.armor);
-      rect(ctx, cx - 5, 0 + by, 2, 2, p.armor);
-      rect(ctx, cx + 5, 0 + by, 2, 2, p.armor);
-      rect(ctx, cx, 1 + by, 2, 1, p.trim);
-      break;
-    case 'hood':
-      rect(ctx, cx - 3, 1 + by, 8, 3, p.cloth);
-      rect(ctx, cx - 4, 3 + by, 2, 7, p.cloth);
-      rect(ctx, cx - 3, 1 + by, 8, 1, p.trim);
+      ellipse(ctx, hdx, hdy - 2, hr, 3 * S, ar[1]);
+      rect(ctx, hdx - hr, hdy - 2, hr * 2, 2, ar[2]);
+      rect(ctx, hdx - hr, hdy - 1, hr * 2, 1, p.trim);
+      rect(ctx, hdx - hr - 1, hdy - 1, 3, 6 * S, ar[1]);
+      rect(ctx, hdx - 1, hdy - 3 * S - 4, 2, 4, p.trim);
+      rect(ctx, hdx - 2, hdy - 3 * S - 5, 4, 2, shade(p.trim, 0.3));
       break;
     case 'topknot':
-      rect(ctx, cx - 3, 1 + by, 7, 2, '#1a1418');
-      rect(ctx, cx - 3, 3 + by, 2, 4, '#1a1418');
-      rect(ctx, cx - 1, 0 + by, 3, 1, '#1a1418');
+      ellipse(ctx, hdx - 1, hdy - 2, hr, 2.5 * S, '#2a2232');
+      rect(ctx, hdx - hr - 1, hdy - 2, 3, 6 * S, '#2a2232');
+      ellipse(ctx, hdx - 1, hdy - 3 * S - 3, 2, 1.5, '#2a2232');
+      for (let k = 0; k < 3; k++) line(ctx, hdx - hr, hdy + k, hdx - hr - 4 - k * 2, hdy + 3 + k * 3, shade(p.skin, 0.25));
+      break;
+    case 'bald':
+      rect(ctx, hdx - 1, hdy - 4 * S, 3, 1, sk[0]);
+      for (let i = 0; i < 6; i++) disc(ctx, neckX - 4 + i * 1.8, neckY + 2 + Math.sin(i) * 1.5, 1, i % 2 ? PAL.gold : PAL.goldDark);
+      break;
+    case 'stone':
+      rect(ctx, hdx - hr, hdy - 4 * S, hr * 2, 3, ar[2]);
+      rect(ctx, hdx - hr - 1, hdy - 2, hr * 2 + 2, 1, ar[1]);
+      line(ctx, neckX - 2, neckY + 2, hipX, hipY - 4, p.trim);
+      line(ctx, hipX + 2, hipY + 2, fx, fy - 4, p.trim);
+      break;
+    case 'horned':
+      ellipse(ctx, hdx, hdy - 2, hr, 2.5 * S, ar[1]);
+      line(ctx, hdx - 2, hdy - 4, hdx - 5, hdy - 9 * S, mt[0]);
+      line(ctx, hdx + 2, hdy - 4, hdx + 5, hdy - 9 * S, mt[0]);
+      break;
+    case 'crown':
+      ellipse(ctx, hdx, hdy - 2, hr, 3 * S, ar[1]);
+      poly(ctx, [[hdx - hr - 4, hdy - 6], [hdx - hr + 1, hdy - 3], [hdx - hr, hdy - 1]], ar[0]);
+      poly(ctx, [[hdx + hr + 4, hdy - 6], [hdx + hr - 1, hdy - 3], [hdx + hr, hdy - 1]], ar[0]);
+      rect(ctx, hdx - 1, hdy - 3, 2, 2, p.trim);
+      break;
+    case 'hood':
+      ellipse(ctx, hdx - 1, hdy - 1, hr + 1, hr + 1, cl[1]);
+      ellipse(ctx, hdx + 1, hdy + 1, hr - 1, hr - 1, sk[1]);
+      rect(ctx, hdx + 1, hdy, 3, 1, p.eye);
+      rect(ctx, hdx - hr - 1, hdy - 2, 2, 9, cl[2]);
       break;
   }
-  // bras + arme
-  const wp = style.weapon;
-  const drawBlade = (x0, y0, x1, y1) => {
-    if (wp === 'halberd') {
-      line(ctx, x0 - (x1 - x0) * 0.3, y0 - (y1 - y0) * 0.3, x1, y1, PAL.wood);
-      const dx = sign(x1 - x0), dy = sign(y1 - y0);
-      rect(ctx, x1 - 1 + dx, y1 - 1 + dy, 3, 3, p.metal);
-      rect(ctx, x1 + dx * 2, y1 + dy * 2, 1, 1, p.metalLight);
-    } else if (wp === 'dao') {
-      line(ctx, x0, y0, x1, y1, p.metal);
-      line(ctx, x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5 + 1, x1, y1 + 1, p.metal);
-      rect(ctx, x0, y0, 2, 2, p.hilt);
-    } else if (wp === 'fist') {
-      rect(ctx, x0, y0, 3, 3, p.armorDark);
+  // bras avant + arme
+  const shFX = neckX + 2 * S, shFY = neckY + 2 * S;
+  [ex, ey] = limbEnd(shFX, shFY, P.arF, 6.5 * S);
+  [hx, hy] = limbEnd(ex, ey, P.faF, 6 * S);
+  const wa = P.faF + P.wpn;
+  const drawWeapon = () => {
+    if (style.weapon === 'dao') {
+      const [bx, by] = limbEnd(hx, hy, wa, 16 * S);
+      rect(ctx, hx - 1, hy - 1, 3, 3, p.hilt);
+      const [gx, gy] = limbEnd(hx, hy, wa, 2);
+      line(ctx, gx - 2, gy, gx + 2, gy, PAL.gold);
+      line(ctx, gx, gy, bx, by, mt[1], 2);
+      line(ctx, gx, gy, bx, by, mt[0]);
+      const [mx, my] = limbEnd(hx, hy, wa, 11 * S);
+      line(ctx, mx, my, bx, by, p.metalLight, 1);
+    } else if (style.weapon === 'halberd') {
+      const [bx, by] = limbEnd(hx, hy, wa, 18 * S);
+      const [tx, ty] = limbEnd(hx, hy, wa + Math.PI, 10 * S);
+      line(ctx, tx, ty, bx, by, PAL.woodDark, 2);
+      line(ctx, tx, ty, bx, by, PAL.wood);
+      const [nx, ny] = limbEnd(bx, by, wa + 1.4, 4 * S);
+      poly(ctx, [[bx, by], [nx, ny], ...[limbEnd(bx, by, wa, 6 * S)]], mt[1]);
+      line(ctx, bx, by, ...limbEnd(bx, by, wa, 6 * S), p.metalLight);
+      rect(ctx, bx - 1, by - 1, 3, 3, p.trim);
+    } else if (style.weapon === 'fist') {
+      disc(ctx, hx, hy, 2.5 * S, ar[1]);
     }
   };
-  if (f < 4) {
-    rect(ctx, cx + 2, 10 + by, 2, 6, p.armor);
-    rect(ctx, cx + 2, 16 + by, 2, 2, p.skin);
-    if (wp === 'halberd') {
-      line(ctx, cx + 4, 2, cx + 4, 28, PAL.wood);
-      rect(ctx, cx + 3, 1, 3, 3, p.metal);
-      rect(ctx, cx + 5, 2, 2, 4, p.metal);
-    } else drawBlade(cx + 3, 17 + by, cx + 10, 22 + by);
-  } else if (f === 4) {
-    rect(ctx, cx - 2, 4 + by, 2, 6, p.armor);
-    rect(ctx, cx - 3, 3 + by, 2, 2, p.skin);
-    drawBlade(cx - 3, 3, cx - 10, 7);
-  } else if (f === 5) {
-    rect(ctx, cx + 3, 10, 6, 2, p.armor);
-    rect(ctx, cx + 9, 10, 2, 2, p.skin);
-    drawBlade(cx + 10, 11, cx + 17, 14);
-    for (let i = 0; i < 6; i++) {
-      const a = -1.2 + i * 0.45;
-      rect(ctx, cx + 8 + Math.cos(a) * 9, 13 + Math.sin(a) * 10, 1, 1, p.metalLight);
+  if (style.weapon !== 'halberd' || P.arF > 1) drawWeapon();
+  limb(ctx, shFX, shFY, ex, ey, 4 * S, ar[1], shade(p.armor, -0.5), ar[0]);
+  limb(ctx, ex, ey, hx, hy, 3.4 * S, sk[1], shade(p.skin, -0.5), sk[0]);
+  disc(ctx, hx, hy, 1.6 * S, sk[1]);
+  if (style.weapon === 'halberd' && P.arF <= 1) drawWeapon();
+  // traînée de la frappe (comme les frames d'attaque du samouraï)
+  if (P.smear) {
+    const R = 17 * S, ccx = shFX, ccy = shFY + 2;
+    const a0 = P.smear === 1 ? -2.3 : -1.4, a1 = P.smear === 1 ? -0.2 : 0.9;
+    for (let a = a0; a <= a1; a += 0.04) {
+      const t = (a - a0) / (a1 - a0);
+      const th = 1 + Math.round(Math.sin(t * Math.PI) * 2.2);
+      rect(ctx, ccx + Math.cos(a) * R, ccy + Math.sin(a) * R, th, th, t > 0.3 ? p.metalLight : shade(p.metal, 0.4));
     }
-  } else if (f === 6) {
-    rect(ctx, cx - 6, 8 + by, 2, 4, p.armor);
-    rect(ctx, cx + 4, 8, 2, 4, p.armor);
-  } else if (f === 7) {
-    rect(ctx, cx + 3, 10, 5, 2, p.armor);
-    rect(ctx, cx + 8, 10, 2, 2, p.skin);
-    disc(ctx, cx + 12, 11, 2, p.magic);
-    rect(ctx, cx + 12, 10, 1, 1, PAL.white);
+  }
+  if (P.cast) {
+    const ox = hx + 3, oy = hy;
+    disc(ctx, ox, oy, 1 + P.cast, p.magic);
+    disc(ctx, ox, oy, P.cast - 0.5, shade(p.magic, 0.6));
+    for (let k = 0; k < P.cast * 2; k++) rect(ctx, ox + Math.cos(k * 1.7) * (3 + P.cast), oy + Math.sin(k * 1.7) * (3 + P.cast), 1, 1, shade(p.magic, 0.7));
   }
 }
 
-// ---- Esprit volant 20×20 : 0-3 vol, 4 attaque, 5 touché ----
-function drawSpirit(ctx, f, kind, p) {
-  const t = f % 4;
-  const atk = f === 4, hurt = f === 5;
+// ---- Petit démon détaillé 32×28 : 0-3 sautillement, 4 bond, 5 touché ----
+function drawImpHD(ctx, f, p) {
+  const bob = f < 4 ? [0, -1, -2, -1][f] : f === 4 ? -3 : 0;
+  const sq = f < 4 ? [1, 0, 0, 0][f] : 0;
+  const cx = 15 + (f === 4 ? 2 : 0) - (f === 5 ? 2 : 0), cy = 17 + bob + sq;
+  const B = ramp3(p.body);
+  // queue en fouet
+  for (let i = 0; i < 9; i++) {
+    const a = 2.6 + Math.sin(i * 0.5 + f) * 0.3;
+    rect(ctx, cx - 6 - i * 0.9, cy + 2 - i * 0.9 + Math.sin(i * 0.8 + f) * 1.2, 2, 2, B[2]);
+    void a;
+  }
+  poly(ctx, [[cx - 15, cy - 9], [cx - 12, cy - 6], [cx - 15, cy - 5]], p.dark);
+  // ailes membraneuses
+  const wy = f % 2 ? -1 : 1;
+  poly(ctx, [[cx - 3, cy - 4], [cx - 11, cy - 11 + wy], [cx - 9, cy - 4 + wy], [cx - 12, cy - 2]], shade(p.dark, 0.1));
+  line(ctx, cx - 3, cy - 4, cx - 11, cy - 11 + wy, p.dark);
+  // pattes arrière
+  const lg = f < 4 ? [0, 1, 0, -1][f] : 0;
+  limb(ctx, cx - 3, cy + 4, cx - 4 + lg, cy + 9 - bob - sq, 3, B[2], shade(p.body, -0.6), null);
+  // corps (ventre rond)
+  ellipse(ctx, cx, cy, 7, 6 - sq, B[1]);
+  ellipse(ctx, cx - 1, cy - 1, 6, 5 - sq, B[1]);
+  ellipse(ctx, cx + 1, cy + 2, 4, 3, p.belly);
+  ellipse(ctx, cx + 1, cy + 3, 3, 1, shade(p.belly, -0.2));
+  // patte avant
+  limb(ctx, cx + 3, cy + 4, cx + 4 - lg, cy + 9 - bob - sq, 3, B[1], shade(p.body, -0.5), B[0]);
+  rect(ctx, cx + 3 - lg, cy + 9 - bob - sq, 4, 2, p.dark);
+  // tête
+  const hx = cx + 3, hy = cy - 6;
+  ellipse(ctx, hx, hy, 5, 4, B[1]);
+  rect(ctx, hx - 4, hy - 3, 6, 1, B[0]);
+  // cornes recourbées
+  poly(ctx, [[hx - 4, hy - 3], [hx - 7, hy - 9], [hx - 2, hy - 4]], p.horn);
+  poly(ctx, [[hx + 2, hy - 3], [hx + 5, hy - 9], [hx + 4, hy - 3]], p.horn);
+  rect(ctx, hx - 7, hy - 9, 1, 1, shade(p.horn, -0.3));
+  // visage
+  if (f === 5) {
+    line(ctx, hx, hy - 1, hx + 2, hy + 1, PAL.white);
+    line(ctx, hx + 2, hy - 1, hx, hy + 1, PAL.white);
+  } else {
+    rect(ctx, hx, hy - 1, 3, 2, p.eye);
+    rect(ctx, hx + 2, hy - 1, 1, 1, PAL.white);
+    rect(ctx, hx + 4, hy - 1, 1, 2, p.eye);
+  }
+  rect(ctx, hx + 1, hy + 2, 4, 1, shade(p.dark, -0.4));
+  rect(ctx, hx + 2, hy + 3, 1, 1, PAL.white);
+  rect(ctx, hx + 4, hy + 3, 1, 1, PAL.white);
+  // griffes (bond)
+  if (f === 4) {
+    limb(ctx, cx + 5, cy, cx + 11, cy - 2, 2.5, B[1], shade(p.body, -0.5), null);
+    for (let k = 0; k < 3; k++) rect(ctx, cx + 11 + k, cy - 4 + k * 2, 1, 1, PAL.ivory);
+  }
+}
+
+// ---- Esprits détaillés 28×28 ----
+function drawSpiritHD(ctx, f, kind, p) {
+  const t = f % 4, atk = f === 4, hurt = f === 5;
   if (kind === 'bat') {
-    const up = t % 2 === 0;
-    const wy = atk ? 4 : up ? 3 : 16;
-    poly(ctx, [[9, 10], [1, wy], [4, 12], [7, 13]], p.dark);
-    poly(ctx, [[11, 10], [19, wy], [16, 12], [13, 13]], p.dark);
-    line(ctx, 9, 10, 2, wy + (up ? 1 : -1), p.light);
-    line(ctx, 11, 10, 18, wy + (up ? 1 : -1), p.light);
-    ellipse(ctx, 10, 11, 3, 4, p.body);
-    rect(ctx, 9, 5, 4, 4, p.body);
-    rect(ctx, 13, 7, 3, 1, PAL.gold);
-    rect(ctx, 11, 6, 1, 1, hurt ? PAL.white : p.eye);
-    rect(ctx, 8, 15, 1, 2, p.dark);
-    rect(ctx, 11, 15, 1, 2, p.dark);
+    const up = [1, 0.3, -0.6, 0.3][t];
+    const wy = atk ? -8 : up * 8;
+    const B = ramp3(p.body);
+    for (const s of [-1, 1]) {
+      const bx = 14 + s * 3;
+      poly(ctx, [[bx, 13], [14 + s * 13, 13 - wy], [14 + s * 11, 17 - wy * 0.3], [14 + s * 7, 16], [14 + s * 5, 18]], p.dark);
+      line(ctx, bx, 13, 14 + s * 13, 13 - wy, p.light);
+      line(ctx, 14 + s * 9, 13 - wy * 0.6, 14 + s * 8, 17 - wy * 0.2, shade(p.dark, 0.3));
+    }
+    ellipse(ctx, 14, 15, 4, 5, B[1]);
+    ellipse(ctx, 15, 16, 2, 3, B[0]);
+    ellipse(ctx, 15, 9, 3, 3, B[1]);
+    poly(ctx, [[17, 9], [21, 10], [17, 11]], PAL.gold);
+    rect(ctx, 15, 8, 2, 1, hurt ? PAL.white : p.eye);
+    poly(ctx, [[13, 6], [12, 2], [15, 6]], B[2]);
+    rect(ctx, 12, 20, 1, 3, p.dark);
+    rect(ctx, 16, 20, 1, 3, p.dark);
     return;
   }
   if (kind === 'wind') {
-    const r = atk ? 8 : 7;
-    disc(ctx, 10, 10, r, p.dark);
-    disc(ctx, 10, 10, r - 2, p.body);
-    for (let i = 0; i < 3; i++) {
-      const a = t * 0.8 + i * 2.1;
-      rect(ctx, 10 + Math.cos(a) * (r - 1), 10 + Math.sin(a) * (r - 1), 2, 2, p.light);
+    const R = atk ? 10 : 9;
+    for (let k = 0; k < 3; k++) {
+      for (let a = 0; a < Math.PI * 1.6; a += 0.08) {
+        const r = R - k * 3 - a * 0.6;
+        if (r < 1) continue;
+        rect(ctx, 14 + Math.cos(a + t * 0.9 + k * 2) * r, 14 + Math.sin(a + t * 0.9 + k * 2) * r, 2, 2, k === 0 ? p.dark : k === 1 ? p.body : p.light);
+      }
     }
-    rect(ctx, 6, 8, 8, 4, PAL.ivory);
-    rect(ctx, 7, 9, 2, 1, hurt ? PAL.vermilion : p.eye);
-    rect(ctx, 11, 9, 2, 1, hurt ? PAL.vermilion : p.eye);
-    rect(ctx, 9, 11, 2, 1, PAL.vermilion);
+    ellipse(ctx, 14, 14, 5, 4, PAL.ivory);
+    rect(ctx, 10, 12, 8, 1, shade(PAL.ivory, -0.2));
+    rect(ctx, 11, 13, 2, 2, hurt ? PAL.vermilion : p.eye);
+    rect(ctx, 15, 13, 2, 2, hurt ? PAL.vermilion : p.eye);
+    rect(ctx, 13, 16, 2, 1, PAL.vermilion);
     return;
   }
-  // flamme (wisp, ghostflame, void)
+  // flamme spectrale (feu follet, flamme fantôme, néant)
   const sway = [0, 1, 0, -1][t];
-  poly(ctx, [[5, 11], [10 + sway, 1 + (t % 2)], [15, 11]], p.body);
-  poly(ctx, [[7, 11], [9 - sway, 4], [12, 11]], p.light);
-  ellipse(ctx, 10, 12, 5, 5, p.body);
-  ellipse(ctx, 10, 13, 3, 3, p.light);
-  rect(ctx, 6 + sway, 17, 2, 2, p.body);
-  rect(ctx, 12 - sway, 17, 2, 1, p.body);
-  if (kind === 'void') {
-    disc(ctx, 10, 12, 2, PAL.white);
-    rect(ctx, 10, 12, 1, 1, atk ? PAL.vermilion : p.eye);
-  } else {
-    rect(ctx, 8, 11, 1, 2, hurt ? PAL.white : p.eye);
-    rect(ctx, 12, 11, 1, 2, hurt ? PAL.white : p.eye);
-    if (atk) rect(ctx, 9, 14, 3, 1, p.eye);
+  const C = [p.dark, p.body, p.light, '#ffffff'];
+  for (let k = 0; k < 4; k++) {
+    const s = 1 - k * 0.24;
+    poly(ctx, [[14 - 7 * s, 16], [14 + sway * (1 + k * 0.5) - 1, 2 + k * 3 + (t % 2)], [14 + 7 * s, 16]], C[k]);
+    ellipse(ctx, 14, 17, Math.round(7 * s), Math.round(7 * s), C[k]);
   }
+  for (let k = 0; k < 3; k++) rect(ctx, 9 + k * 4 + sway, 23 + (k % 2), 2, 2 + ((t + k) % 2), p.body);
+  if (kind === 'void') {
+    ellipse(ctx, 14, 16, 3, 2, PAL.white);
+    rect(ctx, 14, 16, 1, 1, atk ? PAL.vermilion : p.eye);
+  } else {
+    rect(ctx, 11, 15, 2, 3, hurt ? PAL.white : p.eye);
+    rect(ctx, 15, 15, 2, 3, hurt ? PAL.white : p.eye);
+    rect(ctx, 11, 15, 1, 1, shade(p.light, 0.5));
+    rect(ctx, 15, 15, 1, 1, shade(p.light, 0.5));
+    if (atk) ellipse(ctx, 14, 20, 2, 1, p.eye);
+  }
+}
+
+// ---- Le Général Corrompu, au même squelette (×1.35) ----
+const GENERAL_POSE_MAP = [0, 2, 5, 9, 14, 16, 13, 18]; // repos, repos, marche, marche, armé, frappe, saut, touché
+function drawGeneralHD(ctx, f, p) {
+  const pf = GENERAL_POSE_MAP[f];
+  drawRigWarrior(ctx, pf, {
+    skin: p.mask, eye: p.eye, armor: p.armor, trim: p.trim, cloth: p.cape, pants: p.pants, boot: p.boot,
+    metal: p.metal, metalLight: '#ffffff', hilt: p.gold, magic: p.trim,
+  }, { hat: 'helmet', weapon: 'halberd', cape: true }, 1.35, 80, 64);
+  // cornes de bélier par-dessus le casque
+  const P = warriorPose(pf);
+  const S = 1.35, ground = 61, cx = 32;
+  const hipY = ground - 17 * S + P.bob, hipX = cx + P.lean * 4 * S;
+  const nX = hipX + Math.sin(P.lean) * 13 * S, nY = hipY - Math.cos(P.lean) * 13 * S;
+  const hx = nX + 1 + P.head, hy = nY - 5 * S;
+  // cornes de bélier enroulées
+  for (const s of [-1, 1]) {
+    for (let t = 0; t < 1; t += 0.06) {
+      const ang = -1.9 + t * 4.6, r = 4.5 - t * 2.5;
+      const px = hx + s * (4 + Math.cos(ang) * r * 0.9), py = hy - 4 + Math.sin(ang) * r;
+      rect(ctx, px, py, 2, 2, t < 0.5 ? p.horn : shade(p.horn, -0.25));
+    }
+  }
+  // épaulières en tête de tigre
+  ellipse(ctx, nX - 6, nY + 3, 4, 3, p.gold);
+  rect(ctx, nX - 7, nY + 3, 2, 1, PAL.black);
 }
 
 // ---- BOSS 1 : le Général Corrompu 48×48 ----
 // 0-1 repos, 2-3 marche, 4 armé, 5 frappe, 6 saut/écrasement, 7 touché
-function drawGeneral(ctx, f, p) {
-  const bob = f <= 3 ? f % 2 : 0;
-  const lean = f === 5 ? 3 : f === 4 ? -2 : f === 7 ? -3 : 0;
-  const cx = 20 + lean, by = bob + (f === 6 ? -2 : 0);
-  // cape
-  poly(ctx, [[cx - 6, 12 + by], [cx, 12 + by], [cx - 6, 40], [cx - 16 - bob, 42]], p.cape);
-  rect(ctx, cx - 15 - bob, 41, 9, 1, p.capeDark);
-  // jambes
-  const lg = f === 2 ? [-3, 3] : f === 3 ? [3, -3] : f === 5 ? [5, -4] : [0, 0];
-  rect(ctx, cx - 6 + lg[1], 32, 5, 10, p.pantsDark);
-  rect(ctx, cx - 6 + lg[1], 41, 6, 4, p.boot);
-  rect(ctx, cx + 1 + lg[0], 32, 5, 10, p.pants);
-  rect(ctx, cx + 1 + lg[0], 41, 6, 4, p.boot);
-  // jupe d'armure lamellaire
-  poly(ctx, [[cx - 8, 25 + by], [cx + 8, 25 + by], [cx + 10, 37], [cx - 10, 37]], p.armor);
-  for (let y = 28; y < 37; y += 3) rect(ctx, cx - 9, y + by, 18, 1, p.armorDark);
-  rect(ctx, cx - 1, 25 + by, 2, 12, p.trim);
-  // torse
-  rect(ctx, cx - 7, 12 + by, 15, 13, p.armor);
-  rect(ctx, cx - 5, 14 + by, 11, 8, p.armorDark);
-  disc(ctx, cx, 18 + by, 3, p.gold);
-  disc(ctx, cx, 18 + by, 1, p.cape);
-  // épaulières tête de tigre
-  ellipse(ctx, cx - 8, 13 + by, 4, 3, p.gold);
-  ellipse(ctx, cx + 8, 13 + by, 4, 3, p.gold);
-  rect(ctx, cx + 9, 13 + by, 2, 1, PAL.black);
-  // ceinture
-  rect(ctx, cx - 7, 23 + by, 15, 3, p.trim);
-  rect(ctx, cx - 2, 23 + by, 4, 3, p.gold);
-  // tête : masque + casque à cornes de bélier
-  rect(ctx, cx - 4, 3 + by, 9, 9, p.mask);
-  rect(ctx, cx - 3, 9 + by, 7, 2, p.maskDark);
-  rect(ctx, cx + 1, 6 + by, 3, 1, f === 7 ? PAL.white : p.eye);
-  rect(ctx, cx + 1, 10 + by, 4, 1, PAL.black);
-  rect(ctx, cx - 5, 1 + by, 11, 4, p.armor);
-  rect(ctx, cx - 5, 4 + by, 11, 1, p.gold);
-  rect(ctx, cx - 1, 0 + by, 3, 1, p.trim);
-  ellipse(ctx, cx - 7, 5 + by, 2, 3, p.horn);
-  rect(ctx, cx - 9, 7 + by, 2, 2, p.horn);
-  ellipse(ctx, cx + 7, 4 + by, 2, 3, p.horn);
-  rect(ctx, cx + 8, 7 + by, 2, 1, p.horn);
-  // guandao
-  const blade = (x0, y0, x1, y1) => {
-    line(ctx, x0, y0, x1, y1, PAL.woodDark, 2);
-    const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1;
-    const nx = -dy / l, ny = dx / l;
-    poly(ctx, [[x1, y1], [x1 + (dx / l) * 9, y1 + (dy / l) * 9], [x1 + (dx / l) * 6 + nx * 5, y1 + (dy / l) * 6 + ny * 5], [x1 + nx * 3, y1 + ny * 3]], p.metal);
-    rect(ctx, x1 - 1, y1 - 1, 3, 3, p.gold);
-  };
-  if (f <= 3) {
-    rect(ctx, cx + 6, 14 + by, 3, 9, p.armor);
-    blade(cx + 8, 40, cx + 12, 4 + by);
-  } else if (f === 4) {
-    rect(ctx, cx - 5, 4 + by, 3, 9, p.armor);
-    blade(cx + 6, 30, cx - 12, 4);
-  } else if (f === 5) {
-    rect(ctx, cx + 6, 15, 8, 3, p.armor);
-    blade(cx + 2, 12, cx + 17, 28);
-    for (let i = 0; i < 8; i++) rect(ctx, cx + 10 + Math.cos(-1.4 + i * 0.4) * 13, 22 + Math.sin(-1.4 + i * 0.4) * 14, 1, 1, PAL.white);
-  } else if (f === 6) {
-    rect(ctx, cx + 4, 4 + by, 3, 10, p.armor);
-    blade(cx + 6, 2, cx + 8, 38);
-  } else {
-    rect(ctx, cx - 9, 10, 3, 6, p.armor);
-    blade(cx + 10, 40, cx + 16, 10);
-  }
-}
 
 // ---- BOSS 2 : le Gardien de Jade (lion-gardien de pierre) 56×44 ----
 // 0-1 repos, 2-3 marche, 4 accroupi, 5 bond, 6 rugissement, 7 touché
@@ -1910,7 +2179,7 @@ function generateArt(images) {
   ART.player = buildPlayerSheet(images);
   ART.glow = buildGlowSheet();
   ART.imps = {};
-  for (const k in IMP_PALETTES) ART.imps[k] = buildSheet(20, 20, 6, (c, f) => drawImp(c, f, IMP_PALETTES[k]));
+  for (const k in IMP_PALETTES) ART.imps[k] = buildStyledSheet(32, 28, 6, (c, f) => drawImpHD(c, f, IMP_PALETTES[k]));
   ART.warriors = {};
   const wstyles = {
     soldier: { hat: 'helmet', weapon: 'dao', cape: false },
@@ -1921,21 +2190,21 @@ function generateArt(images) {
     guard: { hat: 'crown', weapon: 'halberd', cape: true },
     sorcerer: { hat: 'hood', weapon: 'none', robe: true },
   };
-  for (const k in wstyles) ART.warriors[k] = buildSheet(32, 32, 8, (c, f) => drawWarrior(c, f, STYLE_PALETTES[k], wstyles[k]));
+  for (const k in wstyles) ART.warriors[k] = buildStyledSheet(64, 48, WARRIOR_FRAMES, (c, f) => drawRigWarrior(c, f, STYLE_PALETTES[k], wstyles[k]));
   ART.spirits = {};
   for (const k in SPIRIT_PALETTES) {
     const kind = k === 'ghostflame' ? 'wisp' : k;
-    ART.spirits[k] = buildSheet(20, 20, 6, (c, f) => drawSpirit(c, f, kind, SPIRIT_PALETTES[k]));
+    ART.spirits[k] = buildStyledSheet(28, 28, 6, (c, f) => drawSpiritHD(c, f, kind, SPIRIT_PALETTES[k]));
   }
-  ART.general = buildSheet(48, 48, 8, (c, f) => drawGeneral(c, f, {
+  ART.general = buildStyledSheet(80, 64, 8, (c, f) => drawGeneralHD(c, f, {
     cape: '#9c1d22', capeDark: '#5a0f17', armor: '#3a3446', armorDark: '#24202e', trim: '#e0412b',
     gold: '#f2b53a', pants: '#2a2633', pantsDark: '#1c1a24', boot: '#1a1210', mask: '#c8322a',
     maskDark: '#7a1a18', eye: '#ffde4a', horn: '#efe6cf', metal: '#d8dce8',
   }));
-  ART.jadeLion = buildSheet(56, 44, 8, (c, f) => drawJadeLion(c, f, {
+  ART.jadeLion = buildStyledSheet(56, 44, 8, (c, f) => drawJadeLion(c, f, {
     body: '#3ecf8e', dark: '#1f7a55', light: '#9cf5c8', gold: '#f2b53a', eye: '#e0412b', glow: '#ffe08a',
   }));
-  ART.windLord = buildSheet(40, 44, 7, (c, f) => drawWindLord(c, f, {
+  ART.windLord = buildStyledSheet(40, 44, 7, (c, f) => drawWindLord(c, f, {
     robe: '#bfe8ff', robeLight: '#ffffff', trim: '#3a5a9c', gold: '#f2b53a', mask: '#efe6cf',
     eye: '#e0412b', hat: '#1b2346', fan: '#e0412b', fanDark: '#5a0f17',
   }));
@@ -1943,9 +2212,9 @@ function generateArt(images) {
     scale: '#9c1d22', scaleLight: '#e0412b', scaleDark: '#5a0f17', belly: '#f2b53a', mane: '#f2b53a',
     maneDark: '#a8641c', horn: '#ffe08a', eye: '#c46bff', whisker: '#ffe08a', fire: '#ffe08a',
   };
-  ART.dragonHead = buildSheet(44, 32, 3, (c, f) => drawDragonHead(c, f, dragonPal));
-  ART.dragonSeg = buildSheet(20, 20, 4, (c, f) => drawDragonSegment(c, f, dragonPal));
-  ART.dragonTail = buildSheet(20, 14, 1, (c, f) => drawDragonTail(c, f, dragonPal));
+  ART.dragonHead = buildStyledSheet(44, 32, 3, (c, f) => drawDragonHead(c, f, dragonPal));
+  ART.dragonSeg = buildStyledSheet(20, 20, 4, (c, f) => drawDragonSegment(c, f, dragonPal));
+  ART.dragonTail = buildStyledSheet(20, 14, 1, (c, f) => drawDragonTail(c, f, dragonPal));
   ART.proj = {};
   for (const k in PROJECTILE_DEFS) {
     const d = PROJECTILE_DEFS[k];
@@ -1968,6 +2237,8 @@ function generateArt(images) {
   ART.lightning = buildSheet(16, 176, 2, (c, f) => drawLightning(c, f), PAL.violet);
   ART.tornado = buildSheet(20, 40, 3, (c, f) => drawTornado(c, f), null);
   ART.lantern = buildLanternSheet();
+  ART.hitStar = buildSheet(40, 40, 5, (c, f) => drawHitStar(c, f), null);
+  ART.cutLine = buildSheet(72, 9, 4, (c, f) => drawCutLine(c, f), null);
   ART.dagger = buildSheet(16, 7, 1, (ctx) => {
     rect(ctx, 1, 3, 3, 1, PAL.gold);
     rect(ctx, 4, 2, 1, 3, PAL.goldLight);
@@ -2464,7 +2735,7 @@ function renderTerrain(th, isSolid, paint, x0, y0, w, h) {
       let runTop = ty;
       while (runTop > 0 && isSolid(tx, runTop - 1)) runTop--;
       const exposedTop = !isSolid(tx, runTop - 1);
-      const L = isSolid(tx - 1, ty), Rr = isSolid(tx + 1, ty), D = ty + 1 >= 15 || isSolid(tx, ty + 1);
+      const L = isSolid(tx - 1, ty), Rr = isSolid(tx + 1, ty), D = ty + 1 >= ROWS || isSolid(tx, ty + 1);
       for (let ly = 0; ly < TILE; ly++) {
         for (let lx = 0; lx < TILE; lx++) {
           const px = tx * TILE + lx, py = ty * TILE + ly;
@@ -2727,11 +2998,17 @@ function buildLayers(themeName) {
       for (let k = 0; k < 9; k++) line(fctx, xx + k * 3, 240, xx + k * 3 + (k % 2 ? 4 : -3), 226 - (k % 3) * 4, fg);
     });
   }
-  if (themeName !== 'dragon') {
-    const p = buildPine(77, { trunk: fg, trunkDark: fg, trunkLight: fg, leaf: fg, leafLight: fg, leafDark: fg, ink: fg }, 1.1);
-    wrapDraw(CW, 400, p.w, (xx) => fctx.drawImage(p.leaves, xx, -40));
-  }
   layers.push({ c: fc, fx: 1.25, fy: 1.0, offY: 0, fg: true });
+  // agrandit chaque couche vers le bas (prolonge la dernière rangée) pour couvrir l'écran 480×270
+  const EXT = 110;
+  for (const l of layers) {
+    if (l.fg) { l.offY += MAP_PAD * TILE; continue; }
+    const [c2, x2] = makeCanvas(l.c.width, l.c.height + EXT);
+    x2.drawImage(l.c, 0, 0);
+    x2.drawImage(l.c, 0, l.c.height - 1, l.c.width, 1, 0, l.c.height, l.c.width, EXT);
+    l.c = c2;
+    l.offY += 70;
+  }
   return layers;
 }
 // Brume qui défile (bancs tramés)
@@ -3006,11 +3283,12 @@ const LEVELS = [
     ] },
     signs: [
       '← → ou A / D : se déplacer.  ESPACE : sauter. Appuyez de nouveau en l\'air pour un double saut.',
-      'J : sabre (combo de trois coups). Maintenez K pour lancer des dagues de Qi, ↑+K pour viser en hauteur. Attention aux pieux de bambou !',
+      'J : combo de quatre coups. ↑+J projette en l\'air, puis J pour un combo aérien, ↓+J en l\'air pour un plongeon. Maintenez J pour charger un iaijutsu. K (maintenu) : dagues de Qi.',
       'L : ARRÊT DU TEMPS. Le monde se fige et l\'eau gèle : on peut marcher dessus ! La jauge d\'horloge s\'épuise. L pour relancer le temps.',
       'SHIFT : dash. Vous êtes invulnérable pendant le dash. Les planches fissurées s\'effondrent !',
       'Sautez contre les parois couvertes de lianes pour rebondir. Certains murs fissurés cachent des secrets...',
       'I : vague de Qi (30 Qi). Frôlez les projectiles sans être touché (GRAZE) pour recharger Qi et temps. Seul le cœur de votre corps est vulnérable.',
+      'Ce lac est trop large pour être sauté : arrêtez le temps (L) et traversez sur la glace... sans traîner !',
     ],
     boss: { kind: 'general', name: 'LE GÉNÉRAL CORROMPU', title: 'GARDIEN DU PREMIER FRAGMENT' },
     sections: [
@@ -3117,21 +3395,55 @@ const LEVELS = [
         '####################################',
       ],
       [
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.........---......---..#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.LY.E..G......Z.....G..#',
-        '########################',
-        '########################',
-        '########################',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '..........o.o.o.o.o.o...............',
+        '....................................',
+        '...........g...........g............',
+        '....................................',
+        '....................................',
+        '..Y..s....................R...d..G..',
+        '######~~~~~~~~~~~~~~~~##############',
+        '######~~~~~~~~~~~~~~~~##############',
+        '####################################',
+      ],
+      [
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '.......................o.o.o........',
+        '......................=====.........',
+        '....................................',
+        '..............-----.................',
+        '....................................',
+        '.......===..............g...........',
+        '....................................',
+        '..G....w......d....x.....w....k.Y...',
+        '####################################',
+        '####################################',
+        '####################################',
+      ],
+      [
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.........---................---..#',
+        '.................................#',
+        '..................---............#',
+        '.................................#',
+        '.LY.E..G..............Z.......G..#',
+        '##################################',
+        '##################################',
+        '##################################',
       ],
     ],
   },
@@ -3220,21 +3532,55 @@ const LEVELS = [
         '################################',
       ],
       [
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.........---......---..#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.ks.E.....Y...Z......t.#',
-        '########################',
-        '########################',
-        '########################',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '...........g..............g.........',
+        '......................---...........',
+        '.......VV....VV.....................',
+        '..................CC................',
+        '..b...........................m..t..',
+        '#####~~~~~~~~~~~~~~~~~~~~~~#########',
+        '#####~~~~~~~~~~~~~~~~~~~~~~#########',
+        '####################################',
+      ],
+      [
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................m...............',
+        '.................======.............',
+        '....................................',
+        '....................................',
+        '....................................',
+        '..I...u.....I.....x...u....I...k....',
+        '####################################',
+        '####################################',
+        '####################################',
+      ],
+      [
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.........---................---..#',
+        '.................................#',
+        '..................---............#',
+        '.................................#',
+        '.ks.E.....Y...........Z........t.#',
+        '##################################',
+        '##################################',
+        '##################################',
       ],
     ],
   },
@@ -3249,6 +3595,7 @@ const LEVELS = [
     ] },
     signs: [
       'Les plateformes de bois glissent au-dessus du vide : observez leur rythme avant de sauter.',
+      'Le bassin de la cascade gèle lui aussi quand le temps s\'arrête. Les pièces au-dessus n\'attendent que vous.',
       'Les maîtres déclenchent des CARTES DE SORT : des nuées de projectiles. Survivez sans être touché pour un bonus, et n\'oubliez pas l\'arrêt du temps !',
     ],
     boss: { kind: 'wind', name: 'LE SEIGNEUR DES VENTS', title: 'MAÎTRE DES CIMES CÉLESTES' },
@@ -3322,21 +3669,55 @@ const LEVELS = [
         '##################################',
       ],
       [
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '........---.......---..#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.Ls.E.....Y...Z........#',
-        '########################',
-        '########################',
-        '########################',
+        '....................................',
+        '....................................',
+        '................F...................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '.........y.................y........',
+        '....................................',
+        '...........o.o.o.o.o................',
+        '....................................',
+        '....................................',
+        '..Y..s....................R.........',
+        '#####~~~~~~~~~~~~~~~~~##############',
+        '#####~~~~~~~~~~~~~~~~~##############',
+        '####################################',
+      ],
+      [
+        '....................................',
+        '....................................',
+        '....................................',
+        '............................o.......',
+        '...........................===......',
+        '....................................',
+        '......................CC............',
+        '....................................',
+        '..............CC....................',
+        '....................................',
+        '........B...........................',
+        '..L.........d.............w....k....',
+        '####################################',
+        '####################################',
+        '####################################',
+      ],
+      [
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '........---.................---..#',
+        '.................................#',
+        '..................---............#',
+        '.................................#',
+        '.Ls.E.....Y...........Z..........#',
+        '##################################',
+        '##################################',
+        '##################################',
       ],
     ],
   },
@@ -3424,21 +3805,55 @@ const LEVELS = [
         '################################',
       ],
       [
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '........---.......---..#',
-        '.......................#',
-        '.......................#',
-        '.......................#',
-        '.t..E.........Z....G.t.#',
-        '########################',
-        '########################',
-        '########################',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '.............g...........g..........',
+        '....................................',
+        '..........o.o.o......o.o.o..........',
+        '.........MMM.........MMM............',
+        '...............---..................',
+        '..x...............................w.',
+        '#####~~~~~~~~~~~~~~~~~~~~~~~~~######',
+        '#####~~~~~~~~~~~~~~~~~~~~~~~~~######',
+        '####################################',
+      ],
+      [
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '....................................',
+        '..................m.................',
+        '............==========..............',
+        '....................................',
+        '....................................',
+        '....................................',
+        '..u....w......I......w......k..G....',
+        '####################################',
+        '####################################',
+        '####################################',
+      ],
+      [
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '.................................#',
+        '........---.................---..#',
+        '.................................#',
+        '..................---............#',
+        '.................................#',
+        '.t..E.................Z......G.t.#',
+        '##################################',
+        '##################################',
+        '##################################',
       ],
     ],
   },
@@ -3622,6 +4037,12 @@ class Camera {
     this.minY = 0;
     this.maxY = 0;
     this.lock = null;
+    this.kx = 0;
+    this.ky = 0;
+  }
+  kick(dx, dy) {
+    this.kx += dx;
+    this.ky += dy;
   }
   setBounds(level) {
     this.minX = 0;
@@ -3651,6 +4072,9 @@ class Camera {
     const [tx, ty] = this.target(p);
     this.x += (tx - this.x) * Math.min(1, dt * (this.lock ? 3 : 6));
     this.y += (ty - this.y) * Math.min(1, dt * 4.5);
+    const kd = Math.exp(-dt * 16);
+    this.kx *= kd;
+    this.ky *= kd;
     if (this.shakeT > 0) {
       this.shakeT -= dt;
       this.ox = (Math.random() * 2 - 1) * this.shakeMag;
@@ -3660,8 +4084,8 @@ class Camera {
       this.shakeMag = 0;
     }
   }
-  get rx() { return Math.round(this.x + this.ox); }
-  get ry() { return Math.round(this.y + this.oy); }
+  get rx() { return Math.round(this.x + this.ox + this.kx); }
+  get ry() { return Math.round(this.y + this.oy + this.ky); }
 }
 
 // ---- Objets du monde : vases, cloches, murs secrets, points de contrôle, panneaux, PNJ ----
@@ -3885,7 +4309,7 @@ class NPC extends WorldObject {
 // Porte de l'arène du boss
 class Gate extends WorldObject {
   constructor(level, col) {
-    super(level, 'gate', col * TILE, 8 * TILE, TILE, 64);
+    super(level, 'gate', col * TILE, (8 + MAP_PAD) * TILE, TILE, 64);
     this.col = col;
     const th = level.theme;
     const sheet = buildSheet(16, 64, 1, (ctx) => drawGate(ctx, th));
@@ -3899,13 +4323,13 @@ class Gate extends WorldObject {
     if (this.closed) return;
     this.closed = true;
     this.sprite.visible = true;
-    for (let r = 8; r <= 11; r++) this.level.tiles[r * this.level.w + this.col] = T_GATE;
+    for (let r = 8 + MAP_PAD; r <= 11 + MAP_PAD; r++) this.level.tiles[r * this.level.w + this.col] = T_GATE;
     this.game.audio.play('gate');
     this.game.camera.shake(3, 0.4);
   }
   open() {
     this.closed = false;
-    for (let r = 8; r <= 11; r++) this.level.tiles[r * this.level.w + this.col] = T_EMPTY;
+    for (let r = 8 + MAP_PAD; r <= 11 + MAP_PAD; r++) this.level.tiles[r * this.level.w + this.col] = T_EMPTY;
   }
   update(dt) {
     this.raise = clamp(this.raise + (this.closed ? dt * 3 : -dt * 2), 0, 1);
@@ -3949,13 +4373,13 @@ class Level {
   }
   parse() {
     const secs = this.def.sections;
-    const rows = 15;
+    const rows = ROWS;
     const grid = [];
     for (let r = 0; r < rows; r++) {
       let line = '';
       for (const s of secs) {
         const sw = Math.max(...s.map((x) => x.length));
-        line += (s[r] || '').padEnd(sw, '.');
+        line += (s[r - MAP_PAD] || '').padEnd(sw, '.');
       }
       grid.push(line);
     }
@@ -4044,11 +4468,13 @@ class Level {
     // rayons de lumière
     if (th.shafts) {
       const tex = canvasTexture(buildShaftCanvas());
+    // (rayons étirés à la hauteur de l'écran)
       this.disposables.push(tex);
       for (let i = 0; i < 3; i++) {
         const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 });
         mat.color.setHex(th.shafts);
         const mesh = new THREE.Mesh(planeGeo(96, 180), mat);
+        mesh.scale.set(1.3, H / 180, 1);
         mesh.renderOrder = 7;
         this.group.add(mesh);
         this.disposables.push(mat);
@@ -4056,8 +4482,8 @@ class Level {
       }
     }
     // brume : un banc derrière le décor, un voile devant
-    this.layers.push(new ParallaxLayer(this.group, buildMistCanvas(th.mist), 0.45, 0.35, 118, 6, th.mistAlpha, 7));
-    this.layers.push(new ParallaxLayer(this.group, buildMistCanvas(th.mist), 1.15, 1.0, 178, 29, th.mistAlpha * 0.45, 16));
+    this.layers.push(new ParallaxLayer(this.group, buildMistCanvas(th.mist), 0.45, 0.35, 186, 6, th.mistAlpha, 7));
+    this.layers.push(new ParallaxLayer(this.group, buildMistCanvas(th.mist), 1.15, 1.0, 264, 29, th.mistAlpha * 0.45, 16));
     this.buildChunks();
     // liquides animés (surface + reflets)
     const hzC = buildHazardCanvas(th), shC = buildShimmerCanvas(th);
@@ -4523,11 +4949,20 @@ class Level {
 // 7. JOUEUR
 // =========================================================================
 // Combo de trois coups : frames de la planche ATTACK, fenêtre active, effets
-const COMBO = [
-  { frames: [2, 3, 4, 5, 6], fps: 24, active: [2, 3], dmg: 1, kb: 120, lunge: 50, slash: 0, reach: 34, up: 6, sfx: 'attack' },
-  { frames: [4, 5, 6, 6], fps: 20, active: [0, 1], dmg: 1, kb: 150, lunge: 90, slash: 1, reach: 34, up: 4, sfx: 'attack' },
-  { frames: [1, 2, 3, 4, 5, 6, 6], fps: 18, active: [3, 4], dmg: 1.6, kb: 260, lunge: 70, slash: 2, reach: 42, up: 16, sfx: 'attack3', shake: 3, stop: 0.07 },
-];
+// Répertoire de coups. Angles en radians (0 = devant, positif = vers le bas).
+//  frames : images de la planche ATTACK (ou RUN si anim: 'run'), active : fenêtre de coup
+//  arc : [r0, r1, a0, a1] traînée de lame ; line : [longueur, épaisseur] estoc
+const MOVES = {
+  g1: { frames: [2, 3, 4, 5, 6], fps: 30, active: [1, 3], dmg: 1, kb: 110, lunge: 120, arc: [8, 38, -2.1, 0.75], dur: 0.1, ox: 3, oy: 12, next: 'g2', sfx: 'attack', kick: 2 },
+  g2: { frames: [4, 5, 6, 6], fps: 26, active: [0, 2], dmg: 1, kb: 130, lunge: 140, arc: [8, 38, 1.05, -1.7], dur: 0.1, ox: 3, oy: 12, next: 'g3', sfx: 'attack', kick: 2, colors: ['#4aa8d8', '#bfeeff', '#ffffff'] },
+  g3: { frames: [4, 4, 5, 5, 6], anim: 'run', runFrames: [4, 4, 4, 5, 5], fps: 26, active: [0, 3], dmg: 1.3, kb: 200, lunge: 360, lungeT: 0.11, line: [70, 9], dur: 0.08, ox: -6, oy: 13, next: 'g4', sfx: 'attack3', kick: 5, ghosts: true, colors: ['#4aa8d8', '#e8faff', '#ffffff'] },
+  g4: { frames: [3, 4, 5, 6, 5, 6, 6], fps: 22, active: [1, 5], dmg: 1.7, kb: 300, lunge: 70, spin: true, arc: [6, 46, -1.6, -1.6 + Math.PI * 2.2], dur: 0.24, tail: 0.5, ox: 0, oy: 13, multi: true, sfx: 'attack3', shake: 4, stop: 0.1, ripple: 1.3, kick: 4, colors: ['#f2b53a', '#ffe08a', '#ffffff'] },
+  up: { frames: [3, 4, 5, 6, 6], fps: 24, active: [1, 3], dmg: 1.3, kb: 50, launch: true, hop: -300, arc: [8, 44, 2.3, -1.5], dur: 0.13, ox: 2, oy: 14, next: 'a1', sfx: 'attack3', kickY: -4, stop: 0.07, colors: ['#f2b53a', '#ffe08a', '#ffffff'] },
+  a1: { frames: [3, 4, 5, 6], fps: 28, active: [1, 2], dmg: 1, kb: 80, juggle: true, arc: [8, 38, -1.9, 0.9], dur: 0.1, ox: 2, oy: 12, next: 'a2', sfx: 'attack', air: true, kick: 2 },
+  a2: { frames: [4, 5, 6, 6], fps: 26, active: [0, 2], dmg: 1, kb: 80, juggle: true, arc: [8, 38, 1.0, -1.8], dur: 0.1, ox: 2, oy: 12, next: 'a3', sfx: 'attack', air: true, kick: 2, colors: ['#4aa8d8', '#bfeeff', '#ffffff'] },
+  a3: { frames: [2, 3, 4, 5, 6, 6], fps: 22, active: [2, 4], dmg: 1.6, kb: 220, spike: true, arc: [6, 50, -2.6, 1.7], dur: 0.15, ox: 0, oy: 12, sfx: 'attack3', air: true, shake: 3, stop: 0.08, kick: 3, colors: ['#f2b53a', '#ffe08a', '#ffffff'] },
+  dash: { frames: [4, 5, 6, 6], fps: 22, active: [0, 3], dmg: 1.4, kb: 180, arc: [10, 46, -0.7, 0.55], dur: 0.12, ox: -4, oy: 13, sfx: 'attack3', pierce: true, kick: 4, colors: ['#4aa8d8', '#e8faff', '#ffffff'] },
+};
 
 class Player {
   constructor(game, level, x, y) {
@@ -4553,8 +4988,12 @@ class Player {
     this.airDash = false;
     this.dashHits = new Set();
     this.attack = null;
-    this.comboStep = 0;
     this.comboCd = 0;
+    this.airMoves = 0;
+    this.charge = -1;
+    this.charged = false;
+    this.plunging = false;
+    this.lungeT = 0;
     this.qiCd = 0;
     this.casting = 0;
     this.knifeCd = 0;
@@ -4573,10 +5012,11 @@ class Player {
     this.wasGround = true;
     this.fallStart = y;
     this.safe = { x, y };
+    this.hiddenT = 0;
     this.sprite = new Sprite(level.group, ART.player, 14);
     this.aura = new Glow(level.group, 56, 0x7fe3ff, 0.12, 0.1);
     this.ghosts = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       const s = new Sprite(level.group, ART.player, 13);
       s.visible = false;
       s.setFlash(0.75, 0x7fe3ff);
@@ -4646,7 +5086,7 @@ class Player {
     } else {
       // --- Déplacement horizontal (accélération / friction) ---
       const attacking = this.attack && this.onGround;
-      const target = ax * CONFIG.RUN_SPEED * (attacking ? 0.2 : 1);
+      const target = ax * CONFIG.RUN_SPEED * (attacking ? 0.2 : this.charge >= 0 ? 0.25 : 1);
       if (this.wallLock <= 0) {
         if (ax !== 0) this.vx = approach(this.vx, target, (this.onGround ? CONFIG.ACCEL : CONFIG.AIR_ACCEL) * dt);
         else this.vx = approach(this.vx, 0, (this.onGround ? CONFIG.FRICTION : CONFIG.AIR_ACCEL * 0.5) * dt);
@@ -4657,6 +5097,7 @@ class Player {
       if (Math.abs(this.vy) < 50 && inp.held('jump')) grav *= 0.55;
       if (this.attack && !this.onGround && this.vy > -50) grav *= 0.4;
       this.vy = Math.min(this.vy + grav * dt, CONFIG.MAX_FALL);
+      if (this.plunging) this.vy = this.plungeT > 0.06 ? 560 : -70;
       // --- Glissade sur les murs à lianes ---
       this.wallDir = 0;
       if (!this.onGround) {
@@ -4709,12 +5150,26 @@ class Player {
         this.jumpCut = false;
       }
     }
-    // --- Attaque (combo) ---
-    if (!locked && inp.hit('attack') && this.dashT <= 0 && this.hurtT <= 0) {
-      if (!this.attack && this.comboCd <= 0) this.startAttack(0);
+    // --- Attaques au sabre ---
+    this.holdT = !locked && inp.held('attack') ? (this.holdT || 0) + dt : 0;
+    this.iaiPose = (this.iaiPose || 0) - dt;
+    if (!locked && inp.hit('attack') && this.hurtT <= 0 && !this.plunging) {
+      if (this.dashT > 0) { this.dashT = Math.max(this.dashT, 0.13); this.startMove('dash'); }
+      else if (!this.onGround && inp.held('down') && !this.attack) this.startPlunge();
       else if (this.attack) this.attack.queued = true;
+      else if (this.comboCd <= 0) {
+        if (this.onGround) this.startMove(inp.held('up') ? 'up' : 'g1');
+        else if (this.airMoves < 4) this.startMove('a1');
+      }
     }
     if (this.attack) this.updateAttack(dt);
+    this.updateCharge(dt, locked);
+    if (this.plunging) this.updatePlunge(dt);
+    if (this.lungeT > 0) {
+      this.lungeT -= dt;
+      this.vx = this.facing * MOVES.g3.lunge;
+      if (Math.random() < 0.8) g.fx.dust(this.cx - this.facing * 6, this.y + this.h, 1);
+    }
     // --- Pouvoir spécial : vague de Qi ---
     this.knifeCd -= dt;
     if (!locked && inp.held('special') && this.knifeCd <= 0 && this.dashT <= 0 && this.hurtT <= 0) this.throwKnife(inp.held('up'));
@@ -4724,7 +5179,9 @@ class Player {
     const prevVy = this.vy;
     const res = moveBody(this, lv, dt);
     if (res.platform) res.platform.onStand(this);
+    if (this.plunging && this.onGround) this.plungeImpact();
     if (this.onGround) {
+      this.airMoves = 0;
       if (!this.wasGround) {
         if (prevVy > 200) {
           g.fx.dust(this.cx, this.y + this.h, 6);
@@ -4749,51 +5206,189 @@ class Player {
     this.hazards();
     this.animate(dt);
   }
-  startAttack(step) {
-    const g = this.game, def = COMBO[step];
-    this.comboStep = step;
-    this.attack = { def, step, t: 0, hits: new Set(), queued: false, hitAny: false };
-    if (this.onGround) this.vx = this.facing * def.lunge;
-    else this.vy = Math.min(this.vy, 20);
+  startMove(name) {
+    const g = this.game, def = MOVES[name];
+    if (def.air) this.airMoves++;
+    this.attack = { name, def, t: 0, hits: new Set(), queued: false, half: false, ghostT: 0 };
+    this.charge = -1;
+    this.charged = false;
+    if (this.onGround && def.lunge && !def.lungeT) this.vx = this.facing * def.lunge;
+    if (def.lungeT) this.lungeT = def.lungeT;
+    if (!this.onGround && name !== 'dash') this.vy = Math.min(this.vy, def.air ? -40 : 20);
+    if (def.hop) { this.vy = def.hop; this.onGround = false; this.standingOn = null; this.coyote = 0; }
     g.audio.play(def.sfx);
-    const sx = this.facing > 0 ? this.cx - 6 : this.cx - 34;
-    const s = new Sprite(this.level.group, ART.slash[def.slash], 15);
-    s.setFlip(this.facing < 0);
-    const fx = { sprite: s, life: 0.2, ox: sx - this.x, oy: -14 - (def.slash === 2 ? 6 : 0) };
-    fx.update = (e) => {
-      e.sprite.setFrame(Math.min(2, Math.floor((e.t / 0.2) * 3)));
-      e.sprite.setPos(this.x + e.ox, this.y + e.oy);
-    };
-    fx.update(fx);
-    s.visible = false;
-    fx.delay = def.active[0] / def.fps;
-    const upd = fx.update;
-    fx.update = (e, dt2) => {
-      if (e.delay > 0) { e.delay -= dt2; e.life = 0.2; e.t = 0; e.sprite.visible = false; return; }
-      e.sprite.visible = true;
-      upd(e);
+    const delay = def.active[0] / def.fps;
+    const follow = () => [this.cx + this.facing * def.ox, this.y + def.oy];
+    const trail = new SlashTrail(this.level.group, { arc: def.arc, line: def.line, flip: this.facing < 0, dur: def.dur, fade: 0.14, tail: def.tail || 0.75, colors: def.colors, follow });
+    trail.mesh.visible = delay <= 0;
+    const fx = { sprite: trail, life: delay + trail.total, t: 0 };
+    fx.update = (e, dt) => {
+      if (e.t < delay) return;
+      trail.mesh.visible = true;
+      trail.step(dt);
     };
     this.level.effects.push(fx);
   }
-  attackBox() {
-    const d = this.attack.def;
-    const x = this.facing > 0 ? this.cx : this.cx - d.reach;
-    return { x, y: this.y - d.up, w: d.reach, h: this.h + d.up - 2 };
+  attackBox(def) {
+    const ox = this.cx + this.facing * def.ox, oy = this.y + def.oy;
+    if (def.line) {
+      const len = def.line[0];
+      return { x: this.facing > 0 ? ox : ox - len, y: oy - 11, w: len, h: 22 };
+    }
+    const [, r1, a0, a1] = def.arc;
+    if (Math.abs(a1 - a0) >= Math.PI * 1.9) return { x: ox - r1, y: oy - r1, w: r1 * 2, h: r1 * 2 };
+    let x0 = ox, x1 = ox, y0 = oy, y1 = oy;
+    for (let k = 0; k <= 10; k++) {
+      const a = a0 + ((a1 - a0) * k) / 10;
+      const px = ox + Math.cos(a) * r1 * this.facing, py = oy + Math.sin(a) * r1;
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
   updateAttack(dt) {
-    const a = this.attack, d = a.def;
+    const a = this.attack, d = a.def, g = this.game;
     a.t += dt;
     const fi = Math.floor(a.t * d.fps);
-    if (fi >= d.active[0] && fi <= d.active[1]) this.applyHits(this.attackBox(), Math.round(this.game.damage * d.dmg * 10) / 10, d, a.hits);
+    if (fi >= d.active[0] && fi <= d.active[1]) {
+      if (d.multi && !a.half && fi >= Math.floor((d.active[0] + d.active[1]) / 2) + 1) { a.half = true; a.hits.clear(); }
+      this.applyHits(this.attackBox(d), g.damage * d.dmg, d, a.hits);
+    }
+    a.ghostT -= dt;
+    if ((d.ghosts || d.spin || d.hop || d.spike) && a.ghostT <= 0) { a.ghostT = 0.035; this.spawnGhost(0.2); }
     const dur = d.frames.length / d.fps;
-    if (a.queued && a.t > dur * 0.6 && a.step < 2) {
-      this.startAttack(a.step + 1);
-      return;
+    if (a.queued && a.t > dur * 0.5 && d.next) {
+      let nx = d.next;
+      if (!this.onGround && nx.startsWith('g')) nx = 'a1';
+      if (nx === 'a1' && this.airMoves >= 4) nx = null;
+      if (nx) { this.startMove(nx); return; }
     }
     if (a.t >= dur) {
       this.attack = null;
-      if (a.step === 2) this.comboCd = 0.22;
+      if (a.name === 'g4' || a.name === 'a3') this.comboCd = 0.16;
     }
+  }
+  // Charge (maintenir J après un coup) puis iaijutsu : traversée éclair et entailles différées
+  updateCharge(dt, locked) {
+    const g = this.game;
+    const holding = !locked && g.input.held('attack');
+    if (this.charge < 0) {
+      if (holding && !this.attack && this.onGround && this.dashT <= 0 && this.hurtT <= 0 && this.holdT > 0.22) this.charge = 0;
+      return;
+    }
+    if (!this.onGround || this.hurtT > 0 || this.dashT > 0) { this.charge = -1; this.charged = false; return; }
+    if (holding) {
+      this.charge += dt;
+      if (Math.random() < 0.8) {
+        const a = rand(0, Math.PI * 2), r = rand(22, 34);
+        const pr = g.fx.add.spawn(this.cx + Math.cos(a) * r, this.cy + Math.sin(a) * r, -Math.cos(a) * r * 3, -Math.sin(a) * r * 3, 0.3, 1, this.charge > 0.55 ? 0xffe08a : 0x7fe3ff);
+        if (pr) pr.shrink = true;
+      }
+      if (!this.charged && this.charge > 0.55) {
+        this.charged = true;
+        g.audio.play('charged');
+        g.fx.ring(this.cx, this.cy, PAL.goldLight, 16);
+        g.ripple(this.cx, this.cy, 0.5, 200);
+      }
+    } else {
+      const ok = this.charged;
+      this.charge = -1;
+      this.charged = false;
+      if (ok) this.iai();
+    }
+  }
+  iai() {
+    const g = this.game, lv = this.level, dir = this.facing;
+    const sx = this.x;
+    let dist = 0;
+    for (; dist < 156; dist += 4) {
+      const nx = sx + dir * (dist + 4);
+      const tx = Math.floor((dir > 0 ? nx + this.w : nx) / TILE);
+      let blocked = false;
+      for (let yy = this.y + 2; yy < this.y + this.h - 1; yy += 8) if (lv.solidAt(tx, Math.floor(yy / TILE))) blocked = true;
+      if (blocked) break;
+    }
+    const ex = sx + dir * dist;
+    const box = { x: Math.min(sx, ex) - 6, y: this.y - 8, w: Math.abs(ex - sx) + this.w + 12, h: this.h + 12 };
+    const pool = lv.boss ? lv.enemies.concat(lv.boss.hurtTargets()) : lv.enemies;
+    const targets = pool.filter((e) => !e.dead && overlap(box, e.hitbox()));
+    for (let k = 0; k < 8; k++) {
+      this.x = sx + ((ex - sx) * k) / 8;
+      this.placeSprite();
+      this.sprite.setFrame(PLAYER_ANIMS.run.start + 4);
+      this.spawnGhost(0.4);
+    }
+    this.x = ex;
+    this.vx = dir * 50;
+    this.invuln = Math.max(this.invuln, 0.5);
+    this.iaiPose = 0.5;
+    const trail = new SlashTrail(lv.group, { line: [Math.abs(ex - sx) + 26, 5], flip: dir < 0, dur: 0.05, fade: 0.5, tail: 1.2, colors: ['#e0412b', '#ffd8c8', '#ffffff'], x: sx + this.w / 2 - dir * 12, y: this.y + 15, order: 16 });
+    lv.effects.push({ sprite: trail, life: trail.total, t: 0, update: (e, dt) => trail.step(dt) });
+    g.audio.play('iai');
+    g.flash(0xffffff, 0.3);
+    g.post.aberr = 2.5;
+    g.slowmo = 0.3;
+    g.camera.kick(dir * 7, 0);
+    const dmg = 8 + g.upg.dmg * 2;
+    g.later(0.32, () => {
+      if (this.level !== lv) return;
+      for (const e of targets) {
+        if (e.dead) continue;
+        const hb = e.hitbox(), cx = hb.x + hb.w / 2, cy = hb.y + hb.h / 2;
+        for (let k = 0; k < 3; k++) spawnFx(lv, ART.cutLine, cx + rand(-5, 5), cy + rand(-7, 7), { rot: rand(-1.2, 1.2), dur: 0.22, delay: k * 0.05 });
+        spawnFx(lv, ART.hitStar, cx, cy, { dur: 0.25, scale: 1.6 });
+        e.hurt(dmg, dir, 260, { launch: true, stop: 0.12 });
+        g.fx.sparks(cx, cy, dir);
+        g.fx.burst(cx, cy, 14, [PAL.vermilion, PAL.white, PAL.goldLight], 160, 0.5);
+        g.ripple(cx, cy, 1.4, 260);
+      }
+      if (targets.length) {
+        g.audio.play('attack3');
+        g.audio.play('hit');
+        g.camera.shake(6, 0.3);
+        g.hitstop = 0.12;
+        g.flash(0xffffff, 0.2);
+        g.gainQi(10);
+      }
+    });
+  }
+  // Plongeon (↓ + J en l'air) : chute éclair puis onde de choc à l'atterrissage
+  startPlunge() {
+    const g = this.game;
+    this.plunging = true;
+    this.plungeT = 0;
+    this.plungeHits = new Set();
+    this.vx = this.facing * 20;
+    g.audio.play('dash');
+    const trail = new SlashTrail(this.level.group, { line: [46, 9], dur: 0.08, fade: 0.25, tail: 0.9, colors: ['#f2b53a', '#ffe08a', '#ffffff'], follow: () => [this.cx, this.y + 4] });
+    trail.mesh.rotation.z = Math.PI / 2;
+    this.level.effects.push({ sprite: trail, life: 0.9, t: 0, update: (e, dt) => { if (this.plunging) trail.t = Math.min(trail.t, trail.dur); trail.step(dt); } });
+  }
+  updatePlunge(dt) {
+    this.plungeT += dt;
+    this.vx = approach(this.vx, 0, 200 * dt);
+    this.afterT -= dt;
+    if (this.afterT <= 0) { this.afterT = 0.03; this.spawnGhost(0.18); }
+    this.applyHits({ x: this.x - 4, y: this.y + this.h - 6, w: this.w + 8, h: 16 }, this.game.damage, { kb: 40, spike: true, stop: 0.03 }, this.plungeHits);
+  }
+  plungeImpact() {
+    const g = this.game, lv = this.level;
+    this.plunging = false;
+    const fy = this.y + this.h;
+    this.applyHits({ x: this.cx - 58, y: fy - 34, w: 116, h: 38 }, g.damage * 2.2, { kb: 170, launch: true, stop: 0.1, shake: 6, ripple: 0, kick: 0, kickY: 5 }, new Set());
+    g.audio.play('slam');
+    g.ripple(this.cx, fy, 1.9, 300);
+    g.camera.shake(5, 0.3);
+    g.camera.kick(0, 6);
+    g.fx.dust(this.cx, fy, 22);
+    spawnFx(lv, ART.hitStar, this.cx, fy - 4, { dur: 0.22, scale: 2 });
+    for (const d of [-1, 1]) {
+      spawnFx(lv, ART.cutLine, this.cx + d * 30, fy - 2, { dur: 0.25, rot: 0, scale: 1 });
+      for (let k = 0; k < 8; k++) {
+        const pr = g.fx.add.spawn(this.cx + d * k * 6, fy - 1, d * rand(80, 200), rand(-120, -20), rand(0.3, 0.6), 2, pick([0xffe08a, 0xf2b53a, 0xffffff]));
+        if (pr) pr.grav = 500;
+      }
+    }
+    this.comboCd = 0.12;
   }
   // Applique les dégâts d'une zone d'attaque du joueur à tout ce qui est touchable
   applyHits(box, dmg, def, hits) {
@@ -4803,10 +5398,14 @@ class Player {
     for (const e of targets) {
       if (e.dead || hits.has(e) || !overlap(box, e.hitbox())) continue;
       hits.add(e);
-      if (e.hurt(dmg, this.facing, def.kb)) {
+      if (e.hurt(dmg, this.facing, def.kb, def)) {
         hit = true;
-        const hx = clamp(box.x + box.w / 2, e.hitbox().x, e.hitbox().x + e.hitbox().w);
-        g.fx.sparks(hx, e.hitbox().y + e.hitbox().h / 2, this.facing);
+        const hb = e.hitbox();
+        const hx = clamp(box.x + box.w / 2, hb.x, hb.x + hb.w), hy = hb.y + hb.h / 2;
+        g.fx.sparks(hx, hy, this.facing);
+        spawnFx(lv, ART.hitStar, hx, hy, { dur: 0.18, rot: Math.random() * 6, scale: def.stop > 0.06 ? 1.5 : 1 });
+        const swing = def.line ? 0 : def.arc ? (def.arc[3] > def.arc[2] ? 0.75 : -0.75) * this.facing : 0;
+        spawnFx(lv, ART.cutLine, hb.x + hb.w / 2, hy, { dur: 0.16, rot: -swing + rand(-0.2, 0.2) });
       }
     }
     for (const o of lv.objects) {
@@ -4822,10 +5421,12 @@ class Player {
       }
     }
     if (hit) {
-      g.hitstop = Math.max(g.hitstop, def.stop || 0.045);
+      g.hitstop = Math.max(g.hitstop, def.stop || 0.05);
       if (def.shake) g.camera.shake(def.shake, 0.18);
+      g.camera.kick(this.facing * (def.kick || 2), def.kickY || 0);
+      if (def.ripple) g.ripple(this.cx + this.facing * 20, this.cy, def.ripple, 240);
       g.gainQi(4);
-      if (!this.onGround) this.vy = Math.min(this.vy, -60);
+      if (!this.onGround && !this.plunging) this.vy = Math.min(this.vy, -70);
     }
     return hit;
   }
@@ -4987,9 +5588,9 @@ class Player {
       g.onPlayerDead();
     }
   }
-  spawnGhost() {
+  spawnGhost(life = 0.22) {
     const gh = this.ghosts.find((x) => x.life <= 0) || this.ghosts[0];
-    gh.life = 0.22;
+    gh.life = gh.max = life;
     gh.s.visible = true;
     gh.s.setFrame(this.sprite.frame);
     gh.s.setFlip(this.facing < 0);
@@ -5002,9 +5603,12 @@ class Player {
     if (this.hurtT > 0) frame = A.hurt.start + Math.min(3, Math.floor((0.32 - this.hurtT) * 12));
     else if (this.casting > 0) frame = A.attack.start + 4 + Math.min(2, Math.floor((0.3 - this.casting) * 10));
     else if (this.attack) {
-      const d = this.attack.def;
-      frame = A.attack.start + d.frames[Math.min(d.frames.length - 1, Math.floor(this.attack.t * d.fps))];
-    } else if (this.dashT > 0) frame = A.run.start + 4;
+      const d = this.attack.def, i = Math.min(d.frames.length - 1, Math.floor(this.attack.t * d.fps));
+      frame = d.anim === 'run' ? A.run.start + d.runFrames[i] : A.attack.start + d.frames[i];
+    } else if (this.plunging) frame = A.attack.start + 6;
+    else if (this.iaiPose > 0) frame = A.attack.start + (this.iaiPose > 0.25 ? 6 : 5);
+    else if (this.charge >= 0) frame = A.attack.start + (Math.floor(this.charge * 8) % 2);
+    else if (this.dashT > 0) frame = A.run.start + 4;
     else if (!this.onGround) {
       if (this.wallSlide) frame = A.idle.start;
       else frame = A.run.start + (this.vy < -40 ? 3 : this.vy < 60 ? 2 : 11);
@@ -5013,15 +5617,19 @@ class Player {
       frame = A.run.start + (Math.floor(this.animT * A.run.fps * Math.max(0.5, speed)) % A.run.n);
     } else frame = A.idle.start + (Math.floor(this.animT * A.idle.fps) % A.idle.n);
     this.sprite.setFrame(frame);
-    this.sprite.setFlip(this.wallSlide ? this.wallDir > 0 : this.facing < 0);
-    const blink = this.invuln > 0 && this.dashT <= 0 && Math.floor(this.invuln * 16) % 2 === 0;
+    let flip = this.wallSlide ? this.wallDir > 0 : this.facing < 0;
+    if (this.attack && this.attack.def.spin && Math.floor(this.attack.t / 0.045) % 2) flip = !flip;
+    this.sprite.setFlip(flip);
+    const blink = this.invuln > 0 && this.dashT <= 0 && this.iaiPose <= 0 && Math.floor(this.invuln * 16) % 2 === 0;
     this.sprite.visible = !blink;
-    this.sprite.setFlash(this.hurtT > 0 ? 0.5 : 0, 0xff4040);
+    if (this.hurtT > 0) this.sprite.setFlash(0.5, 0xff4040);
+    else if (this.charge >= 0) this.sprite.setFlash(this.charged ? 0.25 + 0.25 * Math.sin(this.charge * 30) : 0.12, this.charged ? 0xffe08a : 0x7fe3ff);
+    else this.sprite.setFlash(0, 0xffffff);
     this.placeSprite();
     for (const gh of this.ghosts) {
       if (gh.life > 0) {
         gh.life -= dt;
-        gh.s.setOpacity(Math.max(0, gh.life / 0.22) * 0.7);
+        gh.s.setOpacity(Math.max(0, gh.life / (gh.max || 0.22)) * 0.7);
         if (gh.life <= 0) gh.s.visible = false;
       }
     }
@@ -5100,7 +5708,7 @@ class Enemy {
     const tx = Math.floor((dir > 0 ? this.x + this.w + 2 : this.x - 2) / TILE);
     return this.level.solidAt(tx, Math.floor((this.y + this.h - 4) / TILE));
   }
-  hurt(dmg, dir, kb) {
+  hurt(dmg, dir, kb, o = {}) {
     if (this.dead) return false;
     if (this.invulnerable) {
       this.game.audio.play('land');
@@ -5108,10 +5716,16 @@ class Enemy {
     }
     this.hp -= dmg;
     this.flashT = 0.12;
+    this.game.popDamage(this.cx, this.y - 4, dmg, !!(o.stop && o.stop > 0.06));
     const resist = this.cfg.heavy ? 0.25 : 1;
     this.vx = dir * kb * resist;
     if (!this.flying && this.onGround && !this.cfg.heavy) this.vy = -kb * 0.45;
     if (this.flying) this.vy = -kb * 0.2;
+    if (!this.cfg.heavy) {
+      if (o.launch) { this.vy = this.flying ? -200 : -340; this.onGround = false; this.vx = dir * 30; }
+      else if (o.spike && !this.onGround) this.vy = 380;
+      else if (o.juggle && !this.onGround) { this.vy = Math.min(this.vy, -150); this.vx = dir * 40; }
+    }
     this.game.registerHit();
     this.game.audio.play('hit');
     this.onHurt(dir);
@@ -5170,10 +5784,18 @@ class Enemy {
     this.flashT -= dt;
     this.animT += dt;
     if (this.state === 'hurt') {
-      this.vx = approach(this.vx, 0, 500 * dt);
-      if (this.stateT > 0.28) this.setState('chase');
+      this.vx = approach(this.vx, 0, (this.onGround ? 500 : 120) * dt);
+      const airborne = !this.flying && !this.onGround;
+      if (this.stateT > 0.28 && !(airborne && this.stateT < 1.6)) this.setState('chase');
       if (this.flying) { this.x += this.vx * dt; this.y += this.vy * dt; this.vy = approach(this.vy, 0, 300 * dt); }
-      else this.physics(dt);
+      else {
+        // en l'air après un coup ascendant : gravité adoucie pour les jongles
+        this.vy = Math.min(this.vy + CONFIG.GRAVITY * 0.55 * dt, CONFIG.MAX_FALL);
+        const was = this.onGround;
+        moveBody(this, this.level, dt);
+        if (this.onGround && !was && this.stateT > 0.1) this.game.fx.dust(this.cx, this.y + this.h, 5);
+        if (this.y > this.level.ph + 32) { this.dead = true; this.removed = true; }
+      }
     } else this.ai(dt);
     if (!this.dead && this.state !== 'hurt' && this.state !== 'dormant') this.contact();
     this.render();
@@ -5203,8 +5825,9 @@ class Enemy {
 // Petit démon : patrouille, poursuit, bondit sur le héros
 class BasicDemon extends Enemy {
   constructor(level, type, x, groundY) {
-    super(level, type, x, groundY, 12, 12);
+    super(level, type, x, groundY, 14, 14);
     this.footPad = 1;
+    this.anchorX = 1;
   }
   ai(dt) {
     const p = this.player(), cfg = this.cfg;
@@ -5249,9 +5872,9 @@ class BasicDemon extends Enemy {
 class Warrior extends Enemy {
   constructor(level, type, x, groundY) {
     const heavy = ENEMY_TYPES[type].heavy;
-    super(level, type, x, groundY, heavy ? 16 : 14, heavy ? 28 : 26);
-    this.footPad = 2;
-    this.anchorX = 0;
+    super(level, type, x, groundY, heavy ? 18 : 14, heavy ? 34 : 32);
+    this.footPad = 1;
+    this.anchorX = 6;
     this.hitDone = false;
     this.teleT = rand(3, 6);
     if (this.cfg.ghost) this.opacity = 0.78;
@@ -5362,11 +5985,13 @@ class Warrior extends Enemy {
     }
     this.physics(dt);
     let f;
-    if (this.state === 'dormant' || this.state === 'awaken') f = 1;
-    else if (this.state === 'windup') f = 4;
-    else if (this.state === 'slash') f = 5;
-    else if (this.state === 'cast') f = 7;
-    else f = Math.abs(this.vx) > 5 ? Math.floor(this.animT * 7) % 4 : Math.floor(this.animT * 2) % 2;
+    const wind = this.cfg.heavy ? 0.7 : 0.45;
+    if (this.state === 'dormant' || this.state === 'awaken') f = 0;
+    else if (this.state === 'windup') f = 12 + Math.min(2, Math.floor((this.stateT / wind) * 3));
+    else if (this.state === 'slash') f = 15 + Math.min(2, Math.floor(this.stateT / 0.06));
+    else if (this.state === 'recover') f = 17;
+    else if (this.state === 'cast') f = 20 + Math.min(2, Math.floor(this.stateT / 0.2));
+    else f = Math.abs(this.vx) > 5 ? 4 + (Math.floor(this.animT * 11) % 8) : Math.floor(this.animT * 4) % 4;
     if (this.state === 'awaken') this.sprite.setTint(Math.floor(this.stateT * 12) % 2 ? 0xffffff : 0x9a9aa8);
     this.sprite.setFrame(f);
   }
@@ -5376,7 +6001,7 @@ class Warrior extends Enemy {
   }
   render() {
     super.render();
-    if (this.state === 'hurt') this.sprite.setFrame(6);
+    if (this.state === 'hurt') this.sprite.setFrame(18 + (Math.floor(this.stateT * 8) % 2));
   }
 }
 
@@ -5861,9 +6486,11 @@ class Boss extends Enemy {
   }
   hurtTargets() { return this.active && !this.dying && this.state !== 'PHASE_2' ? [this] : []; }
   minionCount() { return this.level.enemies.filter((e) => e.summoned && !e.dead).length; }
-  hurt(dmg, dir) {
+  hurt(dmg, dir, kb, o = {}) {
     if (!this.active || this.dying || this.state === 'PHASE_2') return false;
     this.hp -= dmg;
+    const hb = this.hitbox();
+    this.game.popDamage(hb.x + hb.w / 2, hb.y - 4, dmg, !!(o.stop && o.stop > 0.06));
     this.flashT = 0.1;
     this.poise += dmg;
     this.game.registerHit();
@@ -5961,7 +6588,7 @@ class Boss extends Enemy {
   summon(type, n) {
     const a = this.level.arena;
     for (let i = 0; i < n; i++) {
-      const x = a.x + (i % 2 ? 260 : 60) + rand(-20, 20);
+      const x = a.x + (i % 2 ? W - 60 : 60) + rand(-20, 20);
       const e = this.level.spawnEnemy(type, x, this.floorY - (ENEMY_TYPES[type].cls === 'FlyingSpirit' ? 30 : 60), true);
       e.state = e.flying ? 'engage' : 'chase';
       e.home = { x: e.x, y: e.y };
@@ -6068,9 +6695,10 @@ class Boss extends Enemy {
 class GuardianBoss extends Boss {
   constructor(level, kind, x, gy, name) {
     const lion = kind === 'lion';
-    super(level, kind, x, gy, lion ? 40 : 24, lion ? 28 : 40, lion ? ART.jadeLion : ART.general, lion ? 110 : 80, name);
+    super(level, kind, x, gy, lion ? 40 : 26, lion ? 28 : 46, lion ? ART.jadeLion : ART.general, lion ? 110 : 80, name);
     this.lion = lion;
-    this.footPad = lion ? 1 : 2;
+    this.footPad = 1;
+    this.anchorX = lion ? 0 : 8;
     this.wave = lion ? 'jadewave' : 'shockwave';
     this.shard = lion ? 'jadeshard' : 'blade';
     this.minion = lion ? 'impPurple' : 'imp';
@@ -6160,7 +6788,7 @@ class GuardianBoss extends Boss {
             g.camera.shake(6, 0.4);
             const n = p2 ? 6 : 3;
             for (let i = 0; i < n; i++) {
-              const pr = new Projectile(this.level, this.shard, this.arenaX + 30 + Math.random() * 260, this.level.arena.y + 4 - i * 20, rand(-15, 15), 60, 'enemy', 1);
+              const pr = new Projectile(this.level, this.shard, this.arenaX + 30 + Math.random() * (W - 60), this.level.arena.y + 4 - i * 20, rand(-15, 15), 60, 'enemy', 1);
               pr.gravity = 260;
               this.level.addProjectile(pr);
             }
@@ -6402,7 +7030,7 @@ class WindLordBoss extends Boss {
         this.physics(dt);
         if (a.t > 0.4 && a.t < 2.2 && Math.floor(a.t * 10) > a.n) {
           a.n = Math.floor(a.t * 10);
-          const pr = new Projectile(lv, 'feather', lv.arena.x + 20 + Math.random() * 280, lv.arena.y - 6, rand(-30, 30), 150, 'enemy', 1);
+          const pr = new Projectile(lv, 'feather', lv.arena.x + 20 + Math.random() * (W - 40), lv.arena.y - 6, rand(-30, 30), 150, 'enemy', 1);
           pr.walls = true;
           lv.addProjectile(pr);
         }
@@ -6629,7 +7257,7 @@ class DragonKingBoss extends Boss {
         this.mouth = 1;
         if (a.t > 0.4 && a.t < 2.6 && Math.floor(a.t / 0.17) > a.n) {
           a.n = Math.floor(a.t / 0.17);
-          const pr = new Projectile(lv, 'meteor', ar.x + 20 + Math.random() * 280, ar.y - 10, rand(-20, 20), 40, 'enemy', 1);
+          const pr = new Projectile(lv, 'meteor', ar.x + 20 + Math.random() * (W - 40), ar.y - 10, rand(-20, 20), 40, 'enemy', 1);
           pr.gravity = 260;
           pr.parryable = true;
           lv.addProjectile(pr);
@@ -6717,7 +7345,7 @@ const SPELLS = {
     } },
     { name: 'Signe impérial « Pluie de hallebardes »', dur: 8, run: (b, a) => {
       const ar = b.level.arena;
-      if (b.every(a, 'r', 0.13)) b.shoot('violet', ar.x + 12 + Math.random() * 296, ar.y - 8, Math.PI / 2 + rand(-0.15, 0.15), 115);
+      if (b.every(a, 'r', 0.1)) b.shoot('violet', ar.x + 12 + Math.random() * (W - 24), ar.y - 8, Math.PI / 2 + rand(-0.15, 0.15), 115);
       if (b.every(a, 'g', 1.2)) b.ring('gold', 12, 48, Math.random());
     } }],
   ],
@@ -6746,7 +7374,7 @@ const SPELLS = {
     } },
     { name: 'Signe céleste « Rideau de nuages »', dur: 8, run: (b, a) => {
       const ar = b.level.arena, p = b.player();
-      if (b.every(a, 'c', 0.15)) { a.k = (a.k || 0) + 1; b.shoot('white', ar.x + 10 + ((a.k * 53) % 300), ar.y - 8, Math.PI / 2, 88); }
+      if (b.every(a, 'c', 0.11)) { a.k = (a.k || 0) + 1; b.shoot('white', ar.x + 10 + ((a.k * 53) % (W - 20)), ar.y - 8, Math.PI / 2, 88); }
       if (b.every(a, 'h', 0.9)) { const left = Math.random() < 0.5; for (let i = 0; i < 3; i++) b.shoot('blue', left ? ar.x - 10 : ar.x + W + 10, p.cy + (i - 1) * 14, left ? 0 : Math.PI, 95); }
     } }],
   ],
@@ -6761,7 +7389,7 @@ const SPELLS = {
     } },
     { name: 'Dernier souffle « Constellation déchue »', dur: 9, run: (b, a) => {
       const ar = b.level.arena;
-      if (b.every(a, 'r', 0.11)) b.shoot('gold', ar.x + 10 + Math.random() * 300, ar.y - 8, Math.PI / 2 + rand(-0.3, 0.3), rand(70, 120), { turn: rand(-0.3, 0.3) });
+      if (b.every(a, 'r', 0.08)) b.shoot('gold', ar.x + 10 + Math.random() * (W - 20), ar.y - 8, Math.PI / 2 + rand(-0.3, 0.3), rand(70, 120), { turn: rand(-0.3, 0.3) });
       if (b.every(a, 'g', 1.1)) b.ring('violet', 22, 55, Math.random());
     } }],
   ],
@@ -6890,6 +7518,11 @@ class Game {
   }
   later(t, fn) { this.timers.push({ t, fn }); }
   ripple(x, y, strength = 1, speed = 220) { this.post.ripple(x, y, strength, speed); }
+  popDamage(x, y, v, big) {
+    this.popups = this.popups || [];
+    if (this.popups.length > 24) this.popups.shift();
+    this.popups.push({ x: x + rand(-4, 4), y, v: Math.max(1, Math.round(v)), t: 0, big, vx: rand(-20, 20) });
+  }
   // ---- Arrêt du temps ----
   toggleTimeStop() {
     if (this.timeStopped) return this.resumeTime();
@@ -7024,7 +7657,7 @@ class Game {
   }
   startBoss() {
     const lv = this.level, def = lv.def.boss;
-    const sp = lv.bossSpawn || { x: lv.arena.x + 220, y: lv.arena.y + H - 48 };
+    const sp = lv.bossSpawn || { x: lv.arena.x + W * 0.66, y: lv.arena.y + H - 48 };
     lv.boss = createBoss(lv, def, sp.x, sp.y);
     this.audio.stopMusic();
     this.audio.play('roar');
@@ -7281,21 +7914,27 @@ class Game {
   drawUI() {
     const c = this.ui;
     c.clearRect(0, 0, W, H);
+    const centered = (fn) => {
+      c.save();
+      c.translate(0, OY);
+      fn.call(this, c);
+      c.restore();
+    };
     switch (this.state) {
-      case 'intro': this.drawIntro(c); break;
-      case 'menu': this.drawMenu(c); break;
-      case 'controls': this.drawControls(c); break;
-      case 'credits': this.drawCredits(c); break;
+      case 'intro': centered(this.drawIntro); break;
+      case 'menu': centered(this.drawMenu); break;
+      case 'controls': centered(this.drawControls); break;
+      case 'credits': centered(this.drawCredits); break;
       case 'play':
       case 'dialog':
         this.drawHUD(c);
         if (this.state === 'dialog') this.drawDialog(c);
         break;
-      case 'pause': this.drawHUD(c); this.drawPause(c); break;
-      case 'gameover': this.drawGameOver(c); break;
-      case 'levelclear': this.drawLevelClear(c); break;
-      case 'upgrade': this.drawUpgrade(c); break;
-      case 'victory': this.drawVictory(c); break;
+      case 'pause': this.drawHUD(c); centered(this.drawPause); break;
+      case 'gameover': centered(this.drawGameOver); break;
+      case 'levelclear': centered(this.drawLevelClear); break;
+      case 'upgrade': centered(this.drawUpgrade); break;
+      case 'victory': centered(this.drawVictory); break;
     }
     if (this.flashA > 0) {
       c.globalAlpha = Math.min(1, this.flashA);
@@ -7395,10 +8034,10 @@ class Game {
       if (sp.t < 1.6) {
         const k = Math.min(1, sp.t / 0.25), out = Math.max(0, (sp.t - 1.3) / 0.3);
         c.globalAlpha = 0.75 * (1 - out);
-        poly(c, [[W * (1 - k), 70], [W, 64], [W, 92], [W * (1 - k) - 20, 96]], PAL.darkRed);
+        poly(c, [[W * (1 - k), 70 + OY], [W, 64 + OY], [W, 92 + OY], [W * (1 - k) - 20, 96 + OY]], PAL.darkRed);
         c.globalAlpha = 1 - out;
-        drawText(c, 'CARTE DE SORT', W - 10, 70, PAL.goldLight, 1, 'right');
-        drawText(c, name, W - 10 + (1 - k) * 200, 82, PAL.white, 1, 'right');
+        drawText(c, 'CARTE DE SORT', W - 10, 70 + OY, PAL.goldLight, 1, 'right');
+        drawText(c, name, W - 10 + (1 - k) * 200, 82 + OY, PAL.white, 1, 'right');
         c.globalAlpha = 1;
       }
       const left = Math.max(0, Math.ceil(sp.dur - sp.t));
@@ -7418,6 +8057,16 @@ class Game {
       rect(c, bx, by, Math.round((b.hp / b.maxHp) * bwid), 4, b.phase === 2 ? PAL.violet : PAL.vermilion);
       rect(c, bx + bwid / 2, by - 1, 1, 6, PAL.gold);
     }
+    // chiffres de dégâts
+    if (this.popups) {
+      for (const pp of this.popups) {
+        pp.t += 1 / 60;
+        const k = pp.t;
+        const sx = Math.round(pp.x + pp.vx * k - this.camera.rx), sy = Math.round(pp.y - 22 * k + 30 * k * k - this.camera.ry);
+        if (k < 0.75 || Math.floor(k * 20) % 2) drawText(c, String(pp.v), sx, sy, pp.big ? PAL.goldLight : PAL.white, pp.big && k < 0.12 ? 2 : 1, 'center', PAL.black);
+      }
+      this.popups = this.popups.filter((pp) => pp.t < 0.95);
+    }
     // invite d'interaction
     if (this.prompt && this.state === 'play') {
       const o = this.prompt;
@@ -7436,7 +8085,8 @@ class Game {
     const tc = this.titleCard;
     if (tc) {
       const a = tc.t < 0.4 ? tc.t / 0.4 : tc.t > 2.4 ? Math.max(0, (3 - tc.t) / 0.6) : 1;
-      c.globalAlpha = a;
+      c.save();
+      c.translate(0, OY);
       c.globalAlpha = a * 0.6;
       rect(c, 0, 64, W, 40, PAL.black);
       c.globalAlpha = a;
@@ -7445,6 +8095,7 @@ class Game {
       drawText(c, tc.sub, W / 2, 90, PAL.ivory, 1, 'center');
       this.ornamentLine(c, 99, 200);
       c.globalAlpha = 1;
+      c.restore();
     }
   }
   drawDialog(c) {
@@ -7455,14 +8106,14 @@ class Game {
     rect(c, x + 6, y - 5, textWidth(d.name) + 8, 1, PAL.gold);
     drawText(c, d.name, x + 10, y - 3, PAL.goldLight, 1, 'left', null);
     const text = d.lines[d.i].slice(0, Math.floor(d.chars));
-    wrapText(text, 74).slice(0, 5).forEach((l, i) => drawText(c, l, x + 7, y + 7 + i * 7, PAL.ivory));
+    wrapText(text, Math.floor((W - 40) / 4)).slice(0, 5).forEach((l, i) => drawText(c, l, x + 7, y + 7 + i * 7, PAL.ivory));
     if (d.chars >= d.lines[d.i].length && Math.floor(this.stateT * 3) % 2) drawText(c, d.i < d.lines.length - 1 ? 'J >' : 'J X', x + w - 8, y + h - 9, PAL.gold, 1, 'right');
   }
   drawIntro(c) {
-    rect(c, 0, 0, W, H, '#07050a');
+    rect(c, 0, -OY, W, H, '#07050a');
     const t = this.stateT;
     for (let i = 0; i < 40; i++) {
-      const x = (i * 53 + t * (8 + (i % 5) * 3)) % W, y = H - ((i * 37 + t * (12 + (i % 7) * 4)) % H);
+      const x = (i * 53 + t * (8 + (i % 5) * 3)) % W, y = DH - ((i * 37 + t * (12 + (i % 7) * 4)) % DH);
       rect(c, x, y, 1, 1, i % 3 ? PAL.vermilion : PAL.gold);
     }
     this.ornamentLine(c, 40, 240);
@@ -7475,7 +8126,7 @@ class Game {
       drawText(c, vis, W / 2 - textWidth(l) / 2, 60 + i * 11, PAL.ivory);
     });
     this.ornamentLine(c, 60 + lines.length * 11 + 6, 240);
-    if (t > 2 && Math.floor(t * 2) % 2) drawText(c, 'APPUYEZ SUR UNE TOUCHE', W / 2, H - 22, PAL.gold, 1, 'center');
+    if (t > 2 && Math.floor(t * 2) % 2) drawText(c, 'APPUYEZ SUR UNE TOUCHE', W / 2, DH - 22, PAL.gold, 1, 'center');
   }
   drawTitle(c, y) {
     const t = this.stateT;
@@ -7487,7 +8138,7 @@ class Game {
   }
   drawMenu(c) {
     c.globalAlpha = 0.35;
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = 1;
     this.ornamentLine(c, 18, 250);
     this.drawTitle(c, 28);
@@ -7513,16 +8164,18 @@ class Game {
   }
   drawControls(c) {
     c.globalAlpha = 0.75;
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = 1;
-    this.panel(c, 30, 14, W - 60, H - 28);
+    this.panel(c, 30, 14, W - 60, DH - 28);
     drawText(c, 'COMMANDES', W / 2, 22, PAL.gold, 2, 'center');
     const rows = [
       ['← →  /  A D (Q D)', 'SE DÉPLACER'],
       ['ESPACE', 'SAUTER  (X2 : DOUBLE SAUT)'],
       ['ESPACE CONTRE UN MUR', 'REBOND MURAL (LIANES)'],
       ['↓ + ESPACE', 'DESCENDRE D\'UN PONT'],
-      ['J', 'ATTAQUE AU SABRE (COMBO 3 COUPS)'],
+      ['J (X4) / ↑+J', 'COMBO AU SABRE / COUP ASCENDANT'],
+      ['J EN L\'AIR / ↓+J', 'COMBO AÉRIEN / PLONGEON SISMIQUE'],
+      ['MAINTENIR J', 'IAIJUTSU (RELÂCHER QUAND C\'EST CHARGÉ)'],
       ['K (MAINTENIR) / ↑+K', 'DAGUES DE QI'],
       ['I', 'VAGUE DE QI (30 QI)'],
       ['L', 'ARRÊT DU TEMPS (L POUR REPARTIR)'],
@@ -7532,16 +8185,16 @@ class Game {
       ['M', 'COUPER LE SON'],
     ];
     rows.forEach(([k, v], i) => {
-      drawText(c, k, 40, 40 + i * 9, PAL.goldLight);
-      drawText(c, v, 140, 40 + i * 9, PAL.ivory);
+      drawText(c, k, 40, 38 + i * 8, PAL.goldLight);
+      drawText(c, v, 168, 38 + i * 8, PAL.ivory);
     });
-    drawText(c, 'ENTRÉE : RETOUR', W / 2, H - 24, PAL.ivoryDark, 1, 'center');
+    drawText(c, 'ENTRÉE : RETOUR', W / 2, DH - 24, PAL.ivoryDark, 1, 'center');
   }
   drawCredits(c) {
     c.globalAlpha = 0.75;
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = 1;
-    this.panel(c, 30, 14, W - 60, H - 28);
+    this.panel(c, 30, 14, W - 60, DH - 28);
     drawText(c, 'CRÉDITS', W / 2, 22, PAL.gold, 2, 'center');
     const rows = [
       ["DRAGON'S QI", PAL.goldLight],
@@ -7556,11 +8209,11 @@ class Game {
       ['MERCI D\'AVOIR JOUÉ !', PAL.vermilion],
     ];
     rows.forEach(([t, col], i) => drawText(c, t, W / 2, 44 + i * 10, col, 1, 'center'));
-    drawText(c, 'ENTRÉE : RETOUR', W / 2, H - 24, PAL.ivoryDark, 1, 'center');
+    drawText(c, 'ENTRÉE : RETOUR', W / 2, DH - 24, PAL.ivoryDark, 1, 'center');
   }
   drawPause(c) {
     c.globalAlpha = 0.6;
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = 1;
     this.panel(c, W / 2 - 70, 40, 140, 96);
     drawText(c, 'PAUSE', W / 2, 50, PAL.gold, 3, 'center');
@@ -7572,7 +8225,7 @@ class Game {
   drawGameOver(c) {
     const t = this.stateT;
     c.globalAlpha = Math.min(0.8, t * 0.6);
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = Math.min(1, t * 1.2);
     drawText(c, 'YOU DIED', W / 2 + 2, 52, PAL.black, 5, 'center', null);
     drawText(c, 'YOU DIED', W / 2, 50, PAL.vermilion, 5, 'center', PAL.darkRed);
@@ -7593,9 +8246,9 @@ class Game {
   drawLevelClear(c) {
     const s = this.clearStats;
     c.globalAlpha = 0.7;
-    rect(c, 0, 0, W, H, PAL.black);
+    rect(c, 0, -OY, W, H, PAL.black);
     c.globalAlpha = 1;
-    this.panel(c, 40, 16, W - 80, H - 32);
+    this.panel(c, 40, 16, W - 80, DH - 32);
     drawText(c, 'FRAGMENT DE QI RÉCUPÉRÉ', W / 2, 26, PAL.qi, 1, 'center');
     drawText(c, LEVELS[this.levelIndex].name, W / 2, 38, PAL.gold, 2, 'center');
     const rows = [
@@ -7614,12 +8267,12 @@ class Game {
     if (this.stateT > 1.5 && Math.floor(this.stateT * 2) % 2) drawText(c, 'ENTRÉE : AUTEL DU QI', W / 2, 140, PAL.gold, 1, 'center');
   }
   drawUpgrade(c) {
-    rect(c, 0, 0, W, H, '#0d0a14');
+    rect(c, 0, -OY, W, H, '#0d0a14');
     for (let i = 0; i < 30; i++) {
-      const x = (i * 47 + this.stateT * 6) % W, y = H - ((i * 31 + this.stateT * 14) % H);
+      const x = (i * 47 + this.stateT * 6) % W, y = H - ((i * 31 + this.stateT * 14) % DH);
       rect(c, x, y, 1, 1, i % 2 ? PAL.gold : PAL.qiDark);
     }
-    this.panel(c, 16, 8, W - 32, H - 16);
+    this.panel(c, 16, 8, W - 32, DH - 16);
     drawText(c, 'AUTEL DU QI', W / 2, 16, PAL.gold, 2, 'center');
     drawText(c, 'POINTS D\'ESPRIT DISPONIBLES : ' + this.points, W / 2, 31, this.points ? PAL.qi : PAL.ivoryDark, 1, 'center');
     UPGRADES.forEach((u, i) => {
@@ -7634,12 +8287,12 @@ class Game {
       drawText(c, u.desc, 40, y + 7, PAL.ivoryDark);
     });
     const on = this.sel === UPGRADES.length;
-    drawText(c, (on ? '> ' : '  ') + 'CONTINUER VERS : ' + LEVELS[this.levelIndex + 1].name + (on ? ' <' : ''), W / 2, H - 22, on ? PAL.goldLight : PAL.ivory, 1, 'center');
+    drawText(c, (on ? '> ' : '  ') + 'CONTINUER VERS : ' + LEVELS[this.levelIndex + 1].name + (on ? ' <' : ''), W / 2, DH - 22, on ? PAL.goldLight : PAL.ivory, 1, 'center');
   }
   drawVictory(c) {
     const t = this.stateT;
     c.globalAlpha = Math.min(0.85, t * 0.4);
-    rect(c, 0, 0, W, H, '#07050a');
+    rect(c, 0, -OY, W, H, '#07050a');
     c.globalAlpha = 1;
     this.ornamentLine(c, 14, 250);
     drawText(c, 'VICTOIRE', W / 2, 22, PAL.gold, 3, 'center');

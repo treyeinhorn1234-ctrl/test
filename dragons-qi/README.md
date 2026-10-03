@@ -2,7 +2,7 @@
 
 Platformer / side-scroller 2D en pixel art, inspiré de la Chine mythologique
 (wuxia, dragons, temples, montagnes sacrées). Rendu **Three.js (WebGL)** en
-320×180 agrandi sans interpolation.
+480×270, agrandi sans interpolation (×4 = 1920×1080).
 
 > Le royaume est plongé dans le chaos après la chute d'un ancien dragon céleste.
 > Le héros doit traverser les terres sacrées pour récupérer quatre fragments de Qi
@@ -31,7 +31,11 @@ Fichiers :
 | Déplacement | ← → ou A / D (Q / D en AZERTY) |
 | Saut, double saut, saut mural | Espace |
 | Descendre d'un pont | ↓ + Espace |
-| Sabre (combo 3 coups) | J |
+| Combo au sabre (4 coups : taille, revers, estoc, tourbillon) | J répété |
+| Coup ascendant (projette l'ennemi en l'air) | ↑ + J |
+| Combo aérien / plongeon sismique | J en l'air / ↓ + J en l'air |
+| Attaque en dash | J pendant le dash |
+| Iaijutsu (traversée éclair, entailles différées) | maintenir J puis relâcher une fois chargé |
 | Dagues de Qi (rafale) | K maintenu, ↑+K en diagonale |
 | Vague de Qi | I |
 | Arrêt du temps | L (L à nouveau pour relancer) |
@@ -41,6 +45,15 @@ Fichiers :
 | Couper le son | M |
 
 ## Contenu
+
+**Combat** : traînées de lame en ruban (géométrie WebGL pixelisée par le rendu basse
+résolution), jongles aériens, étoiles d'impact et entailles orientées, chiffres de dégâts,
+arrêt sur image, recul de caméra directionnel, images rémanentes, ondes de choc.
+
+**Ennemis** : dessinés sur un squelette articulé (cuisses, tibias, bras, arme) avec
+3 à 4 nuances par matière, contour coloré et éclairage haut-gauche, dans l'esprit de la
+planche du héros ; 23 images par guerrier (repos, marche en 8 temps, armé, frappe avec
+traînée, touché, sort).
 
 **Gameplay inspiré de *Touhou Luna Nights*** :
 - **Arrêt du temps** (jauge d'horloge) : ennemis, boss, projectiles, plateformes et décor se
